@@ -315,3 +315,184 @@ model EncryptionAuditLog {
   @@index([success])
   @@map("encryption_audit_logs")
 }
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  status      TenantStatus @default(ACTIVE)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  calls       Call[]
+  stakeLedger StakeLedger[]
+  claims      Claim[]
+  pools       Pool[]
+
+  @@index([status])
+  @@map("tenants")
+}
+
+model User {
+  id         String   @id @default(uuid())
+  tenantId   String
+  email      String
+  walletAddress String?
+  name       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, email])
+  @@unique([tenantId, walletAddress])
+  @@index([tenantId, id])
+  @@index([tenantId, email])
+  @@index([tenantId, walletAddress])
+  @@map("users")
+}
+
+model Call {
+  id          String      @id @default(uuid())
+  tenantId    String
+  description String
+  outcome     CallOutcome @default(PENDING)
+  resolvedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  stakes      StakeLedger[]
+
+  @@index([tenantId, id])
+  @@index([tenantId, outcome])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, expiresAt])
+  @@map("calls")
+}
+
+model StakeLedger {
+  id               String            @id @default(uuid())
+  tenantId         String
+  callId           String
+  userAddress      String
+  amount           Decimal           @db.Decimal(18, 4)
+  position         Position
+  profitLoss       Decimal?          @db.Decimal(18, 4)
+  transactionHash  String?
+  resolutionStatus ResolutionStatus  @default(PENDING)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  call             Call              @relation(fields: [callId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, id])
+  @@index([tenantId, callId])
+  @@index([tenantId, userAddress])
+  @@index([tenantId, createdAt])
+  @@unique([tenantId, transactionHash])
+  @@map("stake_ledger")
+}
+
+model Claim {
+  id          String      @id @default(uuid())
+  tenantId    String
+  poolId      String?
+  userAddress String
+  amount      Decimal     @db.Decimal(18, 4)
+  status      ClaimStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  pool        Pool?       @relation(fields: [poolId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, id])
+  @@index([tenantId, poolId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, userAddress])
+  @@map("claims")
+}
+
+model Pool {
+  id                String   @id @default(uuid())
+  tenantId          String
+  name              String
+  totalCapacity     Decimal  @db.Decimal(18, 4) @default(0)
+  lockedAmount      Decimal  @db.Decimal(18, 4) @default(0)
+  availableLiquidity Decimal @db.Decimal(18, 4) @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  claims            Claim[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, id])
+  @@index([tenantId, name])
+  @@index([tenantId, createdAt])
+  @@map("pools")
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum CallOutcome {
+  YES
+  NO
+  PENDING
+}
+
+enum Position {
+  YES
+  NO
+}
+
+enum ResolutionStatus {
+  PENDING
+  RESOLVED
+}
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model TenantMember {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  role      TenantRole @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, role])
+  @@map("tenant_members")
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
