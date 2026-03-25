@@ -8,10 +8,12 @@ import { WebsocketService } from './websocket.service';
 import { ConnectionStateService } from './connection-state.service';
 import { WsJwtGuard } from './ws-jwt.guard';
 import { AuthModule } from '../auth/auth.module';
+import { SessionModule } from '../sessions/session.module';
 
 @Module({
   imports: [
     AuthModule,
+    SessionModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

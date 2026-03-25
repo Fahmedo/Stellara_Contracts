@@ -53,8 +53,16 @@ class EnvironmentVariables {
   @IsString()
   JWT_SECRET: string;
 
-  @IsNumber()
-  JWT_EXPIRATION: number;
+  @IsString()
+  JWT_EXPIRATION: string;
+
+  @IsOptional()
+  @IsString()
+  JWT_REFRESH_SECRET?: string;
+
+  @IsOptional()
+  @IsString()
+  JWT_REFRESH_EXPIRATION?: string;
 
   @IsString()
   STELLAR_NETWORK: string;
@@ -98,6 +106,37 @@ class EnvironmentVariables {
   @IsBoolean()
   LOG_INCLUDE_CONTEXT?: boolean;
 
+  @IsOptional()
+  @IsString()
+  SESSION_TTL_SECONDS?: string;
+
+  @IsOptional()
+  @IsString()
+  RATE_LIMIT_QUEUE_TIMEOUT_MS?: string;
+
+  @IsOptional()
+  @IsString()
+  RATE_LIMIT_BUCKET_TTL_MS?: string;
+
+  @IsOptional()
+  @IsString()
+  RATE_LIMIT_QUEUE_CONCURRENCY?: string;
+
+  @IsOptional()
+  @IsString()
+  RATE_LIMIT_BURST_MULTIPLIER?: string;
+
+  @IsOptional()
+  @IsString()
+  SHUTDOWN_DRAIN_TIMEOUT_MS?: string;
+
+  @IsOptional()
+  @IsString()
+  INDEX_ANALYSIS_REPORT_DIR?: string;
+
+  @IsOptional()
+  @IsString()
+  INDEX_ANALYSIS_MIGRATIONS_DIR?: string;
   // AWS S3 Backup Configuration
   @IsOptional()
   @IsString()

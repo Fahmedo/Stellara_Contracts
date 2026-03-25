@@ -4,12 +4,14 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { AuthService } from '../auth.service';
+import { SessionService } from '../../sessions/session.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
     private authService: AuthService,
+    private readonly sessionService: SessionService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
@@ -43,6 +45,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
     }
 
-    return { id: payload.sub, walletAddress: payload.walletAddress, roles: payload.roles };
+    if (payload.sid) {
+      await this.sessionService.validateAccessSession(
+        payload.sub,
+        payload.sid,
+        request,
+      );
+    }
+
+    return {
+      id: payload.sub,
+      walletAddress: payload.walletAddress,
+      roles: payload.roles,
+      sessionId: payload.sid,
+      subscriptionTier: payload.subscriptionTier,
+    };
   }
 }

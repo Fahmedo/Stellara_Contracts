@@ -1,16 +1,17 @@
 import * as cookieParser from 'cookie-parser';
 
-import { ClsMiddleware, CorrelationIdMiddleware, RequestLoggingInterceptor, StructuredLoggerService } from './logging';
+import { ClsMiddleware, CorrelationIdMiddleware, StructuredLoggerService } from './logging';
 
 import { AppModule } from './app.module';
 import { AuditInterceptor } from './audit';
 import { ConfigService } from '@nestjs/config';
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { NestFactory } from '@nestjs/core';
-import { Reflector } from '@nestjs/core';
-import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
-import { ValidationPipe } from '@nestjs/common';
+import { InflightRequestMiddleware } from './lifecycle/inflight-request.middleware';
+import { ApplicationStateService } from './lifecycle/application-state.service';
 
 async function bootstrap () {
   // Create app with buffer logs to ensure we can use our custom logger
@@ -22,12 +23,16 @@ async function bootstrap () {
   const logger = app.get(StructuredLoggerService);
   const clsMiddleware = app.get(ClsMiddleware);
   const correlationIdMiddleware = app.get(CorrelationIdMiddleware);
+  const inflightRequestMiddleware = app.get(InflightRequestMiddleware);
+  const appState = app.get(ApplicationStateService);
+  const userThrottlerGuard = app.get(UserThrottlerGuard);
 
   // Use structured logger
   app.useLogger(logger);
 
   // CLS middleware must be first to set up async context
   app.use(clsMiddleware.getMiddleware());
+  app.use(inflightRequestMiddleware.use.bind(inflightRequestMiddleware));
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -58,12 +63,9 @@ async function bootstrap () {
   });
 
   // Global rate limiting guard (user/IP-based)
-  const reflector = app.get(Reflector);
-  app.useGlobalGuards(new UserThrottlerGuard(reflector));
+  app.useGlobalGuards(userThrottlerGuard);
 
-  // Global request logging interceptor
-  const requestLoggingInterceptor = app.get(RequestLoggingInterceptor);
-  app.useGlobalInterceptors(requestLoggingInterceptor);
+  await appState.verifyStartupDependencies();
 
   // Global audit interceptor for comprehensive action logging
   const auditInterceptor = app.get(AuditInterceptor);
@@ -71,11 +73,35 @@ async function bootstrap () {
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);
+  appState.markReady();
 
   logger.log(`Application is running on: http://localhost:${port}/${apiPrefix}`, 'Bootstrap');
   logger.log(`Environment: ${configService.get<string>('NODE_ENV', 'development')}`, 'Bootstrap');
   logger.log(`Log level: ${configService.get<string>('LOG_LEVEL', 'info')}`, 'Bootstrap');
   logger.log(`Audit logging: enabled`, 'Bootstrap');
+
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    shuttingDown = true;
+    logger.warn(`Received ${signal}. Starting graceful shutdown.`, 'Bootstrap');
+
+    try {
+      await appState.beginDrain(signal);
+      await appState.waitForInflightRequests();
+      await app.close();
+      process.exit(0);
+    } catch (error) {
+      logger.error(error, undefined, 'Bootstrap');
+      process.exit(1);
+    }
+  };
+
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
 }
 
 bootstrap();

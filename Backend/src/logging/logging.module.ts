@@ -1,16 +1,17 @@
-import { DynamicModule, Global, Module, Provider } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DynamicModule, Global, Module, Provider } from '@nestjs/common';
+
 import { AsyncContextService } from './services/async-context.service';
-import { StructuredLoggerService } from './services/structured-logger.service';
-import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
 import { ClsMiddleware } from './middleware/cls-middleware';
-import { RequestLoggingInterceptor } from './interceptors/request-logging.interceptor';
+import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
 import { LoggingModuleOptions } from './interfaces/logging-module-options.interface';
+import { RequestLoggingInterceptor } from './interceptors/request-logging.interceptor';
+import { StructuredLoggerService } from './services/structured-logger.service';
 
 @Global()
 @Module({})
 export class LoggingModule {
-  static forRoot(options: LoggingModuleOptions = {}): DynamicModule {
+  static forRoot (options: LoggingModuleOptions = {}): DynamicModule {
     const providers: Provider[] = [
       AsyncContextService,
       ClsMiddleware,
@@ -49,7 +50,7 @@ export class LoggingModule {
     };
   }
 
-  static forRootAsync(options: {
+  static forRootAsync (options: {
     useFactory: (...args: any[]) => Promise<LoggingModuleOptions> | LoggingModuleOptions;
     inject?: any[];
   }): DynamicModule {

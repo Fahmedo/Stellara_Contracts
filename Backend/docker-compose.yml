@@ -3,6 +3,7 @@ services:
     image: postgres:16-alpine
     container_name: backend-postgres
     restart: unless-stopped
+    command: postgres -c shared_preload_libraries=pg_stat_statements
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -51,13 +52,25 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3000
+      API_PREFIX: api/v1
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
       DATABASE_PASSWORD: postgres
       DATABASE_NAME: app_db
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JWT_SECRET: local_development_secret
+      JWT_EXPIRATION: 900
+      JWT_REFRESH_EXPIRATION: 7d
+      STELLAR_NETWORK: testnet
+      STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+      PROJECT_LAUNCH_CONTRACT_ID: demo-project-launch
+      ESCROW_CONTRACT_ID: demo-escrow
+      INDEXER_POLL_INTERVAL_MS: 5000
+      INDEXER_REORG_DEPTH_THRESHOLD: 5
     volumes:
       - .:/app
       - /app/node_modules

@@ -9,6 +9,8 @@ declare global {
         tenantId?: string;
         walletAddress?: string;
         roles?: string[];
+        sessionId?: string;
+        subscriptionTier?: string;
         [key: string]: any;
       };
     }
