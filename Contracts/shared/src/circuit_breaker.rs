@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec, Map};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Map};
 use crate::governance::{GovernanceManager, GovernanceRole};
 
 /// Pause levels for graduated response
