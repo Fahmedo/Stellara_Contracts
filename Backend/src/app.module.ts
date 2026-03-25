@@ -1,19 +1,20 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
-import { UserController } from './user.controller';
 import { AppService } from './app.service';
-import { validateEnv } from './config/env.validation';
-import { ReputationModule } from './reputation/reputation.module';
-import { DatabaseModule } from './database.module';
-import { IndexerModule } from './indexer/indexer.module';
-import { NotificationModule } from './notification/notification.module';
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
-import { WebsocketModule } from './websocket/websocket.module';
+import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from './database.module';
+import { ErrorHandlingModule } from './common/error-handling.module';
+import { IndexerModule } from './indexer/indexer.module';
+import { LoggingModule } from './logging/logging.module';
+import { Module } from '@nestjs/common';
+import { NotificationModule } from './notification/notification.module';
+import { ReputationModule } from './reputation/reputation.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nestjs/throttler-storage-redis';
-import { LoggingModule } from './logging/logging.module';
-import { ErrorHandlingModule } from './common/error-handling.module';
+import { UserController } from './user.controller';
+import { WebsocketModule } from './websocket/websocket.module';
+import { validateEnv } from './config/env.validation';
 
 @Module({
   imports: [
@@ -42,6 +43,8 @@ import { ErrorHandlingModule } from './common/error-handling.module';
     }),
     // Error handling with global filters
     ErrorHandlingModule,
+    // Comprehensive audit logging for compliance
+    AuditModule,
     ReputationModule,
     DatabaseModule,
     IndexerModule,
@@ -52,4 +55,4 @@ import { ErrorHandlingModule } from './common/error-handling.module';
   controllers: [AppController, UserController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

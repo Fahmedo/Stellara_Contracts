@@ -14,6 +14,7 @@ datasource db {
 
 model User {
   id              String   @id @default(cuid())
+  name            String?
   walletAddress   String   @unique @map("wallet_address")
   profileData     Json?    @map("profile_data")
   reputationScore Int      @default(0) @map("reputation_score")
@@ -45,7 +46,13 @@ model User {
   reputationHistory    ReputationHistory[]
   notificationSettings NotificationSetting?
   notifications        Notification[]
+  tenantMembers        TenantMember[]
 
+  @@unique([tenantId, email])
+  @@unique([tenantId, walletAddress])
+  @@index([tenantId, id])
+  @@index([tenantId, email])
+  @@index([tenantId, walletAddress])
   @@map("users")
 }
 
@@ -280,6 +287,7 @@ enum TenantStatus {
   ACTIVE
   SUSPENDED
   DELETED
+  ARCHIVED
 }
 
 enum TenantPlan {
@@ -287,22 +295,6 @@ enum TenantPlan {
   STARTER
   PROFESSIONAL
   ENTERPRISE
-}
-
-model Tenant {
-  id        String       @id @default(cuid())
-  name      String       @unique
-  slug      String       @unique
-  status    TenantStatus @default(ACTIVE)
-  plan      TenantPlan   @default(FREE)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
-
-  settings  TenantSettings?
-  users     User[]
-  auditLogs TenantAuditLog[]
-
-  @@map("tenants")
 }
 
 model TenantSettings {
@@ -392,33 +384,18 @@ model Tenant {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  users       User[]
-  calls       Call[]
-  stakeLedger StakeLedger[]
-  claims      Claim[]
-  pools       Pool[]
+  users           User[]
+  calls           Call[]
+  stakeLedger     StakeLedger[]
+  claims          Claim[]
+  pools           Pool[]
+  plan            TenantPlan       @default(FREE)
+  settings        TenantSettings?
+  tenantAuditLogs TenantAuditLog[]
+  tenantMembers   TenantMember[]
 
   @@index([status])
   @@map("tenants")
-}
-
-model User {
-  id            String   @id @default(uuid())
-  tenantId      String
-  email         String
-  walletAddress String?
-  name          String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-
-  @@unique([tenantId, email])
-  @@unique([tenantId, walletAddress])
-  @@index([tenantId, id])
-  @@index([tenantId, email])
-  @@index([tenantId, walletAddress])
-  @@map("users")
 }
 
 model Call {
@@ -504,12 +481,6 @@ model Pool {
   @@index([tenantId, name])
   @@index([tenantId, createdAt])
   @@map("pools")
-}
-
-enum TenantStatus {
-  ACTIVE
-  SUSPENDED
-  ARCHIVED
 }
 
 enum CallOutcome {
@@ -611,4 +582,73 @@ enum ConfigScope {
   GLOBAL
   TENANT
   USER
+}
+
+model AuditLog {
+  id            String      @id @default(uuid())
+  correlationId String?     @map("correlation_id")
+  tenantId      String?     @map("tenant_id")
+  userId        String?     @map("user_id")
+  action        AuditAction
+  entityType    String      @map("entity_type")
+  entityId      String?     @map("entity_id")
+  method        String? // HTTP method (GET, POST, PUT, DELETE)
+  path          String? // Request path
+  statusCode    Int?        @map("status_code")
+  ipAddress     String?     @map("ip_address")
+  userAgent     String?     @map("user_agent")
+  requestBody   Json?       @map("request_body")
+  responseBody  Json?       @map("response_body")
+  previousState Json?       @map("previous_state")
+  newState      Json?       @map("new_state")
+  changedFields String[]    @map("changed_fields")
+  metadata      Json?
+  duration      Int? // Duration in milliseconds
+  errorMessage  String?     @map("error_message")
+  checksum      String? // SHA-256 hash for tamper detection
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([correlationId])
+  @@index([createdAt])
+  @@index([statusCode])
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  IMPORT
+  SYSTEM_EVENT
+  API_CALL
+  ERROR
+  ACCESS_DENIED
+  DATA_CHANGE
+}
+
+model AuditRetentionPolicy {
+  id              String    @id @default(uuid())
+  name            String    @unique
+  tenantId        String?   @map("tenant_id")
+  retentionDays   Int       @default(90) @map("retention_days")
+  entityTypes     String[]  @map("entity_types")
+  actions         String[] // AuditAction values to apply policy to
+  archiveEnabled  Boolean   @default(false) @map("archive_enabled")
+  archiveLocation String?   @map("archive_location")
+  isActive        Boolean   @default(true) @map("is_active")
+  lastExecutedAt  DateTime? @map("last_executed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([isActive])
+  @@map("audit_retention_policies")
 }
