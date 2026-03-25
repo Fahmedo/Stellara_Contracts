@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 use super::*;
-use shared::circuit_breaker::CircuitBreakerConfig;
 use crate::UpgradeableTradingContractClient;
+use shared::circuit_breaker::CircuitBreakerConfig;
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Ledger},

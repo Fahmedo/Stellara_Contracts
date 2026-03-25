@@ -1,7 +1,9 @@
 #![no_std]
+use shared::circuit_breaker::{
+    CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, PauseLevel,
+};
 use shared::fees::FeeManager;
 use shared::governance::{GovernanceManager, GovernanceRole, UpgradeProposal};
-use shared::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, PauseLevel};
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
 
 /// Version of this contract implementation

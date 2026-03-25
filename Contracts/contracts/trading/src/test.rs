@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 use super::*;
-use shared::governance::ProposalStatus;
 use shared::circuit_breaker::{CircuitBreakerConfig, PauseLevel};
+use shared::governance::ProposalStatus;
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Ledger},
@@ -601,13 +601,40 @@ fn test_automatic_circuit_breaker() {
     let token_id = env.register_stellar_asset_contract(fee_recipient.clone());
 
     // Trade 1: Should work
-    client.trade(&trader, &symbol_short!("BTC"), &1_000_000i128, &50_000i128, &true, &token_id, &0, &fee_recipient);
-    
+    client.trade(
+        &trader,
+        &symbol_short!("BTC"),
+        &1_000_000i128,
+        &50_000i128,
+        &true,
+        &token_id,
+        &0,
+        &fee_recipient,
+    );
+
     // Trade 2: Should work, but hits TX threshold
-    client.trade(&trader, &symbol_short!("BTC"), &500_000i128, &50_000i128, &true, &token_id, &0, &fee_recipient);
-    
+    client.trade(
+        &trader,
+        &symbol_short!("BTC"),
+        &500_000i128,
+        &50_000i128,
+        &true,
+        &token_id,
+        &0,
+        &fee_recipient,
+    );
+
     // Trade 3: Should fail because TX threshold was hit in Trade 2
-    let result = client.try_trade(&trader, &symbol_short!("BTC"), &100_000i128, &50_000i128, &true, &token_id, &0, &fee_recipient);
+    let result = client.try_trade(
+        &trader,
+        &symbol_short!("BTC"),
+        &100_000i128,
+        &50_000i128,
+        &true,
+        &token_id,
+        &0,
+        &fee_recipient,
+    );
     assert!(result.is_err());
 
     // Check state
@@ -619,7 +646,16 @@ fn test_automatic_circuit_breaker() {
     client.set_pause_level(&admin, &PauseLevel::None);
 
     // Trade 4: Should work now
-    client.trade(&trader, &symbol_short!("BTC"), &100_000i128, &50_000i128, &true, &token_id, &0, &fee_recipient);
+    client.trade(
+        &trader,
+        &symbol_short!("BTC"),
+        &100_000i128,
+        &50_000i128,
+        &true,
+        &token_id,
+        &0,
+        &fee_recipient,
+    );
 }
 
 #[test]
@@ -638,7 +674,16 @@ fn test_partial_pause_function() {
     client.pause_function(&admin, &symbol_short!("trade"));
 
     // Trade should fail
-    let result = client.try_trade(&trader, &symbol_short!("BTC"), &1_000_000i128, &50_000i128, &true, &token_id, &0, &fee_recipient);
+    let result = client.try_trade(
+        &trader,
+        &symbol_short!("BTC"),
+        &1_000_000i128,
+        &50_000i128,
+        &true,
+        &token_id,
+        &0,
+        &fee_recipient,
+    );
     assert!(result.is_err());
 
     // Other functions like get_stats should still work
@@ -646,7 +691,16 @@ fn test_partial_pause_function() {
 
     // Unpause trade
     client.unpause_function(&admin, &symbol_short!("trade"));
-    
+
     // Trade should work
-    client.trade(&trader, &symbol_short!("BTC"), &1_000_000i128, &50_000i128, &true, &token_id, &0, &fee_recipient);
+    client.trade(
+        &trader,
+        &symbol_short!("BTC"),
+        &1_000_000i128,
+        &50_000i128,
+        &true,
+        &token_id,
+        &0,
+        &fee_recipient,
+    );
 }

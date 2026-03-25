@@ -1,9 +1,11 @@
 #![no_std]
 
+use shared::circuit_breaker::{
+    CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, PauseLevel,
+};
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Symbol,
 };
-use shared::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState, PauseLevel};
 
 // Contract Errors
 #[contracterror]
@@ -79,7 +81,11 @@ impl AcademyRewardsContract {
     // ========== INITIALIZATION ==========
 
     /// Initialize the contract with admin
-    pub fn initialize(env: Env, admin: Address, cb_config: CircuitBreakerConfig) -> Result<(), ContractError> {
+    pub fn initialize(
+        env: Env,
+        admin: Address,
+        cb_config: CircuitBreakerConfig,
+    ) -> Result<(), ContractError> {
         if env.storage().instance().has(&DataKey::Admin) {
             return Err(ContractError::AlreadyInitialized);
         }
@@ -90,8 +96,10 @@ impl AcademyRewardsContract {
         // Store roles for shared GovernanceManager/CircuitBreaker compatibility
         let mut roles = soroban_sdk::Map::new(&env);
         roles.set(admin.clone(), shared::governance::GovernanceRole::Admin);
-        env.storage().persistent().set(&symbol_short!("roles"), &roles);
-        
+        env.storage()
+            .persistent()
+            .set(&symbol_short!("roles"), &roles);
+
         // Initialize circuit breaker
         CircuitBreaker::init(&env, cb_config);
 
@@ -145,7 +153,7 @@ impl AcademyRewardsContract {
         badge_type: u32,
     ) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
-        
+
         // Check pause state via CircuitBreaker
         CircuitBreaker::require_not_paused(&env, symbol_short!("mint_b"));
 
@@ -231,21 +239,33 @@ impl AcademyRewardsContract {
     }
 
     /// Set circuit breaker pause level (admin only)
-    pub fn set_cb_pause_level(env: Env, admin: Address, level: PauseLevel) -> Result<(), ContractError> {
+    pub fn set_cb_pause_level(
+        env: Env,
+        admin: Address,
+        level: PauseLevel,
+    ) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         CircuitBreaker::set_pause_level(&env, admin, level);
         Ok(())
     }
 
     /// Pause specific function (admin only)
-    pub fn pause_cb_function(env: Env, admin: Address, func_name: Symbol) -> Result<(), ContractError> {
+    pub fn pause_cb_function(
+        env: Env,
+        admin: Address,
+        func_name: Symbol,
+    ) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         CircuitBreaker::pause_function(&env, admin, func_name);
         Ok(())
     }
 
     /// Unpause specific function (admin only)
-    pub fn unpause_cb_function(env: Env, admin: Address, func_name: Symbol) -> Result<(), ContractError> {
+    pub fn unpause_cb_function(
+        env: Env,
+        admin: Address,
+        func_name: Symbol,
+    ) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         CircuitBreaker::unpause_function(&env, admin, func_name);
         Ok(())
@@ -261,7 +281,7 @@ impl AcademyRewardsContract {
         transaction_hash: String,
     ) -> Result<u32, ContractError> {
         user.require_auth();
-        
+
         // Check pause state via CircuitBreaker
         CircuitBreaker::require_not_paused(&env, symbol_short!("redeem_b"));
 

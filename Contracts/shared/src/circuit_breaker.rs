@@ -1,5 +1,5 @@
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Map};
 use crate::governance::{GovernanceManager, GovernanceRole};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Map, Symbol};
 
 /// Pause levels for graduated response
 #[contracttype]
@@ -41,7 +41,7 @@ impl CircuitBreaker {
     /// Initialize circuit breaker
     pub fn init(env: &Env, config: CircuitBreakerConfig) {
         env.storage().persistent().set(&Self::CONFIG_KEY, &config);
-        
+
         let state = CircuitBreakerState {
             current_period_start: env.ledger().timestamp(),
             current_period_volume: 0,
@@ -55,7 +55,7 @@ impl CircuitBreaker {
     /// Check if a function is paused
     pub fn require_not_paused(env: &Env, func_name: Symbol) {
         let state = Self::get_state(env);
-        
+
         if state.pause_level == PauseLevel::Full {
             panic!("CONTRACT_FULLY_PAUSED");
         }
@@ -66,7 +66,7 @@ impl CircuitBreaker {
                 .persistent()
                 .get(&Self::PAUSED_FUNCS_KEY)
                 .unwrap_or_else(|| Map::new(env));
-            
+
             if paused_funcs.get(func_name).unwrap_or(false) {
                 panic!("FUNCTION_PAUSED");
             }
@@ -80,7 +80,7 @@ impl CircuitBreaker {
             .persistent()
             .get(&Self::CONFIG_KEY)
             .expect("CB_NOT_INIT");
-        
+
         let mut state = Self::get_state(env);
         let now = env.ledger().timestamp();
 
@@ -106,11 +106,11 @@ impl CircuitBreaker {
         if triggered && state.pause_level == PauseLevel::None {
             state.pause_level = PauseLevel::Full;
             state.last_trigger_timestamp = now;
-            
+
             // Emit event
             env.events().publish(
                 (symbol_short!("cb_trig"),),
-                (state.current_period_volume, state.current_period_tx_count)
+                (state.current_period_volume, state.current_period_tx_count),
             );
         }
 
@@ -126,10 +126,8 @@ impl CircuitBreaker {
         state.pause_level = level;
         env.storage().persistent().set(&Self::STATE_KEY, &state);
 
-        env.events().publish(
-            (symbol_short!("cb_pause"),),
-            (level as u32,)
-        );
+        env.events()
+            .publish((symbol_short!("cb_pause"),), (level as u32,));
     }
 
     /// Pause specific function (Admin only)
@@ -142,9 +140,11 @@ impl CircuitBreaker {
             .persistent()
             .get(&Self::PAUSED_FUNCS_KEY)
             .unwrap_or_else(|| Map::new(env));
-        
+
         paused_funcs.set(func_name.clone(), true);
-        env.storage().persistent().set(&Self::PAUSED_FUNCS_KEY, &paused_funcs);
+        env.storage()
+            .persistent()
+            .set(&Self::PAUSED_FUNCS_KEY, &paused_funcs);
 
         let mut state = Self::get_state(env);
         if state.pause_level == PauseLevel::None {
@@ -152,10 +152,8 @@ impl CircuitBreaker {
             env.storage().persistent().set(&Self::STATE_KEY, &state);
         }
 
-        env.events().publish(
-            (symbol_short!("cb_f_psd"), func_name),
-            ()
-        );
+        env.events()
+            .publish((symbol_short!("cb_f_psd"), func_name), ());
     }
 
     /// Unpause specific function (Admin only)
@@ -168,17 +166,17 @@ impl CircuitBreaker {
             .persistent()
             .get(&Self::PAUSED_FUNCS_KEY)
             .unwrap_or_else(|| Map::new(env));
-        
-        paused_funcs.remove(func_name.clone());
-        env.storage().persistent().set(&Self::PAUSED_FUNCS_KEY, &paused_funcs);
 
-        // If no more paused functions, we could potentially set level to None, 
+        paused_funcs.remove(func_name.clone());
+        env.storage()
+            .persistent()
+            .set(&Self::PAUSED_FUNCS_KEY, &paused_funcs);
+
+        // If no more paused functions, we could potentially set level to None,
         // but it's safer to let admin decide.
 
-        env.events().publish(
-            (symbol_short!("cb_f_ups"), func_name),
-            ()
-        );
+        env.events()
+            .publish((symbol_short!("cb_f_ups"), func_name), ());
     }
 
     pub fn get_state(env: &Env) -> CircuitBreakerState {
@@ -193,7 +191,7 @@ impl CircuitBreaker {
                 pause_level: PauseLevel::None,
             })
     }
-    
+
     pub fn get_config(env: &Env) -> CircuitBreakerConfig {
         env.storage()
             .persistent()

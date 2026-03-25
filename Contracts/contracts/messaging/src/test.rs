@@ -3,8 +3,8 @@
 extern crate std;
 
 use super::*;
-use shared::governance::ProposalStatus;
 use shared::circuit_breaker::CircuitBreakerConfig;
+use shared::governance::ProposalStatus;
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Ledger},
