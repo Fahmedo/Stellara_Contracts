@@ -132,7 +132,7 @@ export function distributedlock(options: DistributedLockOptions) {
         ttlMs: options.ttlMs,
         retryIntervalMs: options.retryIntervalMs,
         deadlockWarningMs: options.deadlockWarningMs,
-        operation: () => originalMethod.apply(this, args),
+        operation: () => Promise.resolve(originalMethod.apply(this, args)),
       });
     };
 

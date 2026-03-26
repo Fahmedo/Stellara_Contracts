@@ -42,7 +42,7 @@ interface LockExecutionContext {
 interface ExecuteWithLockOptions<T> {
   keys: string[];
   operationName: string;
-  operation: () => Promise<T>;
+  operation: () => T | Promise<T>;
   timeoutMs?: number;
   ttlMs?: number;
   retryIntervalMs?: number;
@@ -231,7 +231,7 @@ export class DistributedLockService {
 
     this.getExecutionContext().heldLocks.delete(lock.key);
 
-    if (released !== 1) {
+    if (Number(released) !== 1) {
       await this.recordMetric(lock.key, 'staleReleases');
       this.logger.warn({
         msg: 'Distributed lock release skipped because ownership changed',
@@ -289,7 +289,7 @@ export class DistributedLockService {
       `${lock.ttlMs}`,
     );
 
-    if (refreshed !== 1) {
+    if (Number(refreshed) !== 1) {
       this.logger.warn({
         msg: 'Distributed lock heartbeat failed because ownership changed',
         lockKey: lock.key,
