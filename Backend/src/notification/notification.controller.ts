@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { NotificationSettingsDto, UpdateNotificationSettingsDto, PushSubscriptionDto, SubscribeResponseDto } from './dto/notification.dto';
 
@@ -10,7 +11,7 @@ export class NotificationController {
     constructor(private readonly prisma: PrismaService) { }
 
     @Get('settings/:userId')
-    @ApiOperation({ 
+    @ApiOperation({
         summary: 'Get notification settings',
         description: 'Retrieves notification preferences for a specific user'
     })
@@ -19,12 +20,12 @@ export class NotificationController {
         description: 'User unique identifier',
         example: 'cm3x1234567890',
     })
-    @ApiResponse({ 
-        status: 200, 
+    @ApiResponse({
+        status: 200,
         description: 'Notification settings retrieved',
-        type: NotificationSettingsDto 
+        type: NotificationSettingsDto
     })
-    async getSettings(@Param('userId') userId: string): Promise<NotificationSettingsDto> {
+    async getSettings (@Param('userId') userId: string): Promise<NotificationSettingsDto> {
         return this.prisma.notificationSetting.upsert({
             where: { userId },
             update: {},
@@ -33,7 +34,7 @@ export class NotificationController {
     }
 
     @Put('settings/:userId')
-    @ApiOperation({ 
+    @ApiOperation({
         summary: 'Update notification settings',
         description: 'Updates notification preferences for a specific user'
     })
@@ -42,12 +43,12 @@ export class NotificationController {
         description: 'User unique identifier',
         example: 'cm3x1234567890',
     })
-    @ApiResponse({ 
-        status: 200, 
+    @ApiResponse({
+        status: 200,
         description: 'Notification settings updated',
-        type: NotificationSettingsDto 
+        type: NotificationSettingsDto
     })
-    async updateSettings(
+    async updateSettings (
         @Param('userId') userId: string,
         @Body() settings: UpdateNotificationSettingsDto,
     ): Promise<NotificationSettingsDto> {
@@ -62,7 +63,7 @@ export class NotificationController {
     }
 
     @Post('subscribe/:userId')
-    @ApiOperation({ 
+    @ApiOperation({
         summary: 'Subscribe to push notifications',
         description: 'Registers a push notification subscription for a user'
     })
@@ -71,18 +72,18 @@ export class NotificationController {
         description: 'User unique identifier',
         example: 'cm3x1234567890',
     })
-    @ApiResponse({ 
-        status: 201, 
+    @ApiResponse({
+        status: 201,
         description: 'Push subscription registered',
-        type: SubscribeResponseDto 
+        type: SubscribeResponseDto
     })
-    async subscribeToPush(
+    async subscribeToPush (
         @Param('userId') userId: string,
         @Body() subscription: PushSubscriptionDto,
     ): Promise<SubscribeResponseDto> {
         await this.prisma.user.update({
             where: { id: userId },
-            data: { pushSubscription: subscription },
+            data: { pushSubscription: subscription.subscription as Prisma.InputJsonValue },
         });
         return { success: true };
     }

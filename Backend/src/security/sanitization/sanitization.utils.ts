@@ -48,7 +48,7 @@ const SQLI_COMMENT_REGEX = /(--|\#|\/\*.*?\*\/)/i;
 const SQLI_BOOLEAN_BYPASS_REGEX = /\b(or|and)\b\s+1\s*=\s*1\b/i;
 const SQLI_STATEMENT_SEPARATOR_REGEX = /;/;
 
-function normalizeUnicode(value: string): string {
+function normalizeUnicode (value: string): string {
   try {
     return value.normalize('NFKC');
   } catch {
@@ -56,7 +56,7 @@ function normalizeUnicode(value: string): string {
   }
 }
 
-export function containsSqlInjection(value: string): boolean {
+export function containsSqlInjection (value: string): boolean {
   const v = normalizeUnicode(value);
   return (
     SQLI_KEYWORD_REGEX.test(v) ||
@@ -68,11 +68,11 @@ export function containsSqlInjection(value: string): boolean {
 
 const XSS_SCRIPT_REGEX = /<\s*script\b/i;
 
-export function containsXss(value: string): boolean {
+export function containsXss (value: string): boolean {
   return XSS_SCRIPT_REGEX.test(value);
 }
 
-function sanitizeHtmlString(value: string, options: SanitizationOptions): string {
+function sanitizeHtmlString (value: string, options: SanitizationOptions): string {
   const normalized = normalizeUnicode(value);
   const { allowedTags } = { ...DEFAULT_SANITIZATION_OPTIONS, ...options };
 
@@ -81,12 +81,10 @@ function sanitizeHtmlString(value: string, options: SanitizationOptions): string
     allowedAttributes: {},
     // Ensure dangerous tags never survive sanitization.
     disallowedTagsMode: 'discard',
-    // Prevent entity decoding surprises.
-    decodeEntities: false,
   });
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+function isPlainObject (value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null) return false;
   if (Array.isArray(value)) return false;
   // Robust "plain object" check for request payloads, including objects with
@@ -100,7 +98,7 @@ const DANGEROUS_KEYS = new Set([
   'constructor',
 ]);
 
-function stripNoSqlOperators(obj: Record<string, unknown>): Record<string, unknown> {
+function stripNoSqlOperators (obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(obj)) {
     if (key.startsWith('$')) continue;
@@ -110,7 +108,7 @@ function stripNoSqlOperators(obj: Record<string, unknown>): Record<string, unkno
   return result;
 }
 
-export function sanitizeDeep<T>(input: T, options: SanitizationOptions = {} as SanitizationOptions): T {
+export function sanitizeDeep<T> (input: T, options: SanitizationOptions = {} as SanitizationOptions): T {
   // Primitive passthrough
   if (input === null || input === undefined) return input;
 
@@ -140,7 +138,7 @@ export function sanitizeDeep<T>(input: T, options: SanitizationOptions = {} as S
   return input;
 }
 
-export function containsNoSqlOperators(value: unknown): boolean {
+export function containsNoSqlOperators (value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (Array.isArray(value)) return value.some(containsNoSqlOperators);
   if (!isPlainObject(value)) return false;
