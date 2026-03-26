@@ -301,6 +301,7 @@ model Tenant {
   settings  TenantSettings?
   users     User[]
   auditLogs TenantAuditLog[]
+  subscription Subscription?
 
   @@map("tenants")
 }
@@ -383,189 +384,6 @@ model EncryptionAuditLog {
   @@map("encryption_audit_logs")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model Tenant {
-  id        String       @id @default(uuid())
-  slug      String       @unique
-  name      String
-  status    TenantStatus @default(ACTIVE)
-  metadata  Json?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  users       User[]
-  calls       Call[]
-  stakeLedger StakeLedger[]
-  claims      Claim[]
-  pools       Pool[]
-
-  @@index([status])
-  @@map("tenants")
-}
-
-model User {
-  id            String   @id @default(uuid())
-  tenantId      String
-  email         String
-  walletAddress String?
-  name          String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-
-  @@unique([tenantId, email])
-  @@unique([tenantId, walletAddress])
-  @@index([tenantId, id])
-  @@index([tenantId, email])
-  @@index([tenantId, walletAddress])
-  @@map("users")
-}
-
-model Call {
-  id          String      @id @default(uuid())
-  tenantId    String
-  description String
-  outcome     CallOutcome @default(PENDING)
-  resolvedAt  DateTime?
-  expiresAt   DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  stakes StakeLedger[]
-
-  @@index([tenantId, id])
-  @@index([tenantId, outcome])
-  @@index([tenantId, createdAt])
-  @@index([tenantId, expiresAt])
-  @@map("calls")
-}
-
-model StakeLedger {
-  id               String           @id @default(uuid())
-  tenantId         String
-  callId           String
-  userAddress      String
-  amount           Decimal          @db.Decimal(18, 4)
-  position         Position
-  profitLoss       Decimal?         @db.Decimal(18, 4)
-  transactionHash  String?
-  resolutionStatus ResolutionStatus @default(PENDING)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  call   Call   @relation(fields: [callId], references: [id], onDelete: Restrict)
-
-  @@unique([tenantId, transactionHash])
-  @@index([tenantId, id])
-  @@index([tenantId, callId])
-  @@index([tenantId, userAddress])
-  @@index([tenantId, createdAt])
-  @@map("stake_ledger")
-}
-
-model Claim {
-  id          String      @id @default(uuid())
-  tenantId    String
-  poolId      String?
-  userAddress String
-  amount      Decimal     @db.Decimal(18, 4)
-  status      ClaimStatus @default(PENDING)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  pool   Pool?  @relation(fields: [poolId], references: [id], onDelete: SetNull)
-
-  @@index([tenantId, id])
-  @@index([tenantId, poolId])
-  @@index([tenantId, status])
-  @@index([tenantId, createdAt])
-  @@index([tenantId, userAddress])
-  @@map("claims")
-}
-
-model Pool {
-  id                 String   @id @default(uuid())
-  tenantId           String
-  name               String
-  totalCapacity      Decimal  @default(0) @db.Decimal(18, 4)
-  lockedAmount       Decimal  @default(0) @db.Decimal(18, 4)
-  availableLiquidity Decimal  @default(0) @db.Decimal(18, 4)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  claims Claim[]
-
-  @@unique([tenantId, name])
-  @@index([tenantId, id])
-  @@index([tenantId, name])
-  @@index([tenantId, createdAt])
-  @@map("pools")
-}
-
-enum TenantStatus {
-  ACTIVE
-  SUSPENDED
-  ARCHIVED
-}
-
-enum CallOutcome {
-  YES
-  NO
-  PENDING
-}
-
-enum Position {
-  YES
-  NO
-}
-
-enum ResolutionStatus {
-  PENDING
-  RESOLVED
-}
-
-enum ClaimStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-model TenantMember {
-  id        String     @id @default(uuid())
-  tenantId  String
-  userId    String
-  role      TenantRole @default(MEMBER)
-  createdAt DateTime   @default(now())
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, userId])
-  @@index([tenantId, role])
-  @@map("tenant_members")
-}
-
-enum TenantRole {
-  OWNER
-  ADMIN
-  MEMBER
-}
-
-}
-
 // ─── Centralized Config Management ───────────────────────────────────────────
 
 model ConfigEntry {
@@ -622,4 +440,183 @@ enum ConfigScope {
   GLOBAL
   TENANT
   USER
+}
+
+// ─── Payment System Models ───────────────────────────────────────────────────
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  UNPAID
+  TRIALING
+  PAUSED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  UNCOLLECTIBLE
+  VOID
+}
+
+enum PaymentEventType {
+  SUBSCRIPTION_CREATED
+  SUBSCRIPTION_UPDATED
+  SUBSCRIPTION_CANCELLED
+  INVOICE_CREATED
+  INVOICE_PAID
+  INVOICE_PAYMENT_FAILED
+  PAYMENT_METHOD_ATTACHED
+  PAYMENT_METHOD_DETACHED
+  USAGE_RECORDED
+  DUNNING_STARTED
+  DUNNING_RESOLVED
+  DUNNING_FAILED
+}
+
+model SubscriptionPlan {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  stripePriceId String @unique @map("stripe_price_id")
+  amount      Int      // Amount in cents
+  currency    String   @default("usd")
+  interval    String   @default("month") // month, year
+  features    Json?    // Feature flags and limits
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  tenantId             String             @unique @map("tenant_id")
+  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  planId               String             @map("plan_id")
+  plan                 SubscriptionPlan   @relation(fields: [planId], references: [id])
+  stripeSubscriptionId String             @unique @map("stripe_subscription_id")
+  stripeCustomerId     String             @map("stripe_customer_id")
+  status               SubscriptionStatus @default(TRIALING)
+  currentPeriodStart   DateTime           @map("current_period_start")
+  currentPeriodEnd     DateTime           @map("current_period_end")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt           DateTime?          @map("canceled_at")
+  trialStart           DateTime?          @map("trial_start")
+  trialEnd             DateTime?          @map("trial_end")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  invoices       Invoice[]
+  usageRecords   UsageRecord[]
+  paymentEvents  PaymentEvent[]
+  dunningAttempts DunningAttempt[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([stripeCustomerId])
+  @@map("subscriptions")
+}
+
+model UsageRecord {
+  id             String       @id @default(uuid())
+  subscriptionId String       @map("subscription_id")
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  tenantId       String       @map("tenant_id")
+  metricName     String       @map("metric_name") // api_calls, storage_gb, compute_hours
+  quantity       Int
+  timestamp      DateTime     @default(now())
+  stripeUsageRecordId String?   @map("stripe_usage_record_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([subscriptionId])
+  @@index([tenantId])
+  @@index([metricName])
+  @@index([timestamp])
+  @@map("usage_records")
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  subscriptionId String        @map("subscription_id")
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  tenantId       String        @map("tenant_id")
+  stripeInvoiceId String       @unique @map("stripe_invoice_id")
+  status         InvoiceStatus @default(DRAFT)
+  amountDue      Int           @map("amount_due") // in cents
+  amountPaid     Int           @default(0) @map("amount_paid")
+  currency       String        @default("usd")
+  pdfUrl         String?       @map("pdf_url")
+  hostedInvoiceUrl String?     @map("hosted_invoice_url")
+  invoiceNumber  String?       @map("invoice_number")
+  dueDate        DateTime?     @map("due_date")
+  paidAt         DateTime?     @map("paid_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  @@index([subscriptionId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("invoices")
+}
+
+model PaymentMethod {
+  id             String   @id @default(uuid())
+  tenantId       String   @unique @map("tenant_id")
+  stripePaymentMethodId String @unique @map("stripe_payment_method_id")
+  type           String   // card, bank_transfer, etc.
+  brand          String?  // visa, mastercard, etc.
+  last4          String?
+  expMonth       Int?     @map("exp_month")
+  expYear        Int?     @map("exp_year")
+  isDefault      Boolean  @default(true) @map("is_default")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("payment_methods")
+}
+
+model PaymentEvent {
+  id             String          @id @default(uuid())
+  subscriptionId String?         @map("subscription_id")
+  subscription   Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  tenantId       String          @map("tenant_id")
+  eventType      PaymentEventType @map("event_type")
+  stripeEventId  String?         @map("stripe_event_id")
+  metadata       Json?
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  @@index([subscriptionId])
+  @@index([tenantId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("payment_events")
+}
+
+model DunningAttempt {
+  id             String       @id @default(uuid())
+  subscriptionId String       @map("subscription_id")
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  tenantId       String       @map("tenant_id")
+  invoiceId      String       @map("invoice_id")
+  attemptNumber  Int          @map("attempt_number")
+  status         String       // pending, succeeded, failed
+  nextRetryAt    DateTime?    @map("next_retry_at")
+  emailSentAt    DateTime?    @map("email_sent_at")
+  resolvedAt     DateTime?    @map("resolved_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([subscriptionId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([nextRetryAt])
+  @@map("dunning_attempts")
 }

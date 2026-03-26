@@ -67,6 +67,25 @@ class EnvironmentVariables {
 
   @IsNumber()
   INDEXER_REORG_DEPTH_THRESHOLD: number;
+
+  // Stripe Configuration
+  @IsString()
+  STRIPE_SECRET_KEY: string;
+
+  @IsString()
+  STRIPE_PUBLISHABLE_KEY: string;
+
+  @IsString()
+  STRIPE_WEBHOOK_SECRET: string;
+
+  @IsString()
+  STRIPE_PRICE_ID_STARTER: string;
+
+  @IsString()
+  STRIPE_PRICE_ID_PROFESSIONAL: string;
+
+  @IsString()
+  STRIPE_PRICE_ID_ENTERPRISE: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
