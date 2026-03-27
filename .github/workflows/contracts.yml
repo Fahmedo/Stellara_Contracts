@@ -2,16 +2,27 @@ name: Contracts CI
 
 on:
   pull_request:
+    paths:
+      - 'Contracts/**'
+      - '.github/workflows/contracts.yml'
   push:
     branches: [main]
+    paths:
+      - 'Contracts/**'
+      - '.github/workflows/contracts.yml'
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
-      - run: cargo test --all
+          targets: wasm32-unknown-unknown
+      - name: Check Formatting
+        run: cd Contracts && cargo fmt --all -- --check
+      - name: Build Contracts
+        run: cd Contracts && cargo build --release --target wasm32-unknown-unknown
+      - name: Run Tests
+        run: cd Contracts && cargo test --all

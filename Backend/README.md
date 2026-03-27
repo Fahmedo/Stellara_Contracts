@@ -1,156 +1,103 @@
-Stellara_backend
-🚀 Stellara Backend — Web3 Crypto Academy Server
+# Backend Services
 
-Stellara Backend is the server-side application powering Stellara AI, a next-generation Web3 learning and social trading platform built on the Stellar blockchain ecosystem. It is designed for crypto learners and traders who need real-time communication, secure account systems, AI-assisted learning tools, and on-chain trading services.
+A robust and scalable TypeScript backend built with NestJS.
 
-This backend manages authentication, courses, rewards, social feeds, messaging, AI integrations, and blockchain interactions, while exposing REST APIs and WebSocket gateways consumed by the Stellara AI frontend.
+## Features
 
-🚀 Overview
-Stellara AI is designed to educate, empower, and connect crypto users by combining:
+- **NestJS Framework**: Modular architecture ready for microservices
+- **TypeScript**: Type-safe development
+- **Docker Support**: Containerized PostgreSQL and Redis
+- **Environment Validation**: Runtime validation of environment variables
+- **Blue-Green Deployment Hooks**: Slot-aware health checks, traffic switching, and rollback support
+- **Code Quality**: ESLint + Prettier with pre-commit hooks
+- **Testing**: Jest configuration included
 
-A crypto learning academy with structured courses and quizzes
-An AI-powered assistant with text and voice guidance
-A social crypto network with posts, comments, and interactions
-Real-time messaging for one-on-one and group discussions
-On-chain trading tools integrated with Stellar wallets
-Live market news and insights powered by AI
-The backend is responsible for securely managing the core application logic, database interactions, and blockchain integrations.
+## Prerequisites
 
-🧠 Core Features
-🤖 Stellara AI Assistant
-Text & voice-based AI crypto mentor
-Explains trading strategies, blockchain concepts, and Stellar-specific tools
-Provides market insights & educational guidance (not financial advice)
-🎓 Crypto Academy
-Structured learning paths (Beginner → Pro)
-Stellar & Soroban smart contract education
-Interactive quizzes and progress tracking
-🗣 Social Crypto Feed
-Post updates, ideas, and market thoughts
-Like, comment, repost (tweet-style)
-Follow other traders & educators
-💬 Community Chat
-One-on-one messaging
-Group discussions & learning channels
-Trading & ecosystem-focused rooms
-📈 Trading & Wallet
-Trade Stellar-based assets
-Freighter wallet integration
-Portfolio overview & transaction history
-📰 News & Market Intelligence
-Real-time crypto news
-Stellar ecosystem updates
-Market trend summaries via AI
-🛠 Technology Stack
-Backend
-NestJS – API framework
-PostgreSQL – Relational database
-Redis – Caching & real-time messaging
-WebSocket Gateway – Real-time chat & feed
-Blockchain
-Stellar SDK & Horizon API
-Soroban Smart Contracts
-Freighter Wallet integration
-AI & Voice
-LLM API (OpenAI or equivalent)
-Speech-to-Text (Whisper or similar)
-Text-to-Speech (TTS)
-Infrastructure
-Docker for containerization
-AWS / Railway / Render for backend hosting
-Vercel for frontend deployment
-💎 Why Stellara AI Works
-Instantly signals AI intelligence
-Strong connection to Stellar blockchain
-Easy to market & brand
-Scales to mobile apps, APIs, and future tools
-Credible to investors and partners
-⚡ Getting Started
+- Node.js 20+
+- Docker and Docker Compose
+- npm or yarn
 
-✅ Requirements
+## Getting Started
 
-- Node.js v18+
-- PostgreSQL
-- Redis
-- npm or pnpm
-
-📦 Installation
+### 1. Install Dependencies
 
 ```bash
-git clone https://github.com/stellara-network/Stellara_Contracts
-cd Stellara_Contracts/Backend
 npm install
 ```
 
-🔐 Secrets Management
+### 2. Environment Setup
 
-This project uses **HashiCorp Vault** for secure secrets management. Secrets are NOT stored in the repository.
+Copy the example environment file:
 
-**Quick Start:**
+```bash
+cp .env.example .env
+```
 
-1. **Local Development with Vault:**
-   ```bash
-   # Start Vault dev server (in a separate terminal)
-   vault server -dev
-   
-   # In another terminal, provision development secrets
-   export VAULT_ADDR='http://localhost:8200'
-   export VAULT_TOKEN='devroot'
-   ./scripts/vault/provision-dev.sh
-   ```
+Edit `.env` with your configuration.
 
-2. **Local Development with .env.local:**
-   ```bash
-   # Create .env.local (ignored by git)
-   cp .env.example .env.local
-   # Edit .env.local with your development secrets
-   ```
+### 3. Start Development Server
 
-**For detailed setup instructions, see:**
-- [Local Secrets Setup Guide](./docs/LOCAL_SECRETS_SETUP.md)
-- [Secrets Management Strategy](./docs/SECRETS_MANAGEMENT.md)
-- [Vault Client Implementation](./docs/VAULT_CLIENT_NODEJS.md)
+Option A: Local development
 
-⚠️ **SECURITY**: Never commit real secrets to the repository. See [.gitignore](.gitignore) for ignored files.
+```bash
+npm run start:dev
+```
 
-▶ Run Development Server npm run start:dev
+Option B: Docker development
 
-▶ Run Development Server npm run start:dev
+```bash
+docker-compose up
+```
 
-🧪 Testing npm run test npm run test:e2e
+The API will be available at `http://localhost:3000/api/v1`.
 
-🤝 Contributing The first step is to Fork the repository then you Create a feature branch Commit your changes git pull latest changes to avoid conflicts Submit a pull request Issues and feature requests are welcome.
+### 4. Setup Git Hooks
 
-🗄️ Database & Migrations Workflow
+```bash
+npm run prepare
+```
 
-Para garantizar la integridad de los datos y la consistencia entre entornos, este proyecto utiliza **TypeORM Migrations** y **Docker**.
+## Available Scripts
 
-1. Infraestructura Local
-Levanta la base de datos PostgreSQL utilizando el contenedor preconfigurado:
-bash
+- `npm run start:dev` - Start development server with hot reload
+- `npm run build` - Build for production
+- `npm run start:prod` - Start production server
+- `npm run lint` - Lint and fix code
+- `npm run format` - Format code with Prettier
+- `npm run test` - Run tests
+- `npm run test:cov` - Run tests with coverage
+- `npm run deploy:blue-green` - Promote the inactive slot with health gates and traffic shifting
+- `npm run deploy:rollback` - Return traffic to the previous live slot
+
+## Docker Commands
+
+```bash
+docker-compose up
 docker-compose up -d
+docker-compose down
+docker-compose logs -f app
+docker-compose up --build
+```
 
-Nota: La base de datos está mapeada al puerto 5433 para evitar conflictos con instalaciones locales preexistentes.
+## API Endpoints
 
-2. Comandos de Migración
-Utiliza estos scripts para gestionar el esquema de la base de datos sin usar synchronize: true:
+- `GET /api/v1` - Welcome message
+- `GET /health` - Combined liveness and readiness status
+- `GET /health/live` - Liveness probe
+- `GET /health/ready` - Readiness probe
+- `GET /health/deployment` - Deployment slot and release metadata
 
-Generar Migración: (Ejecutar después de modificar una entidad .entity.ts)
+## Blue-Green Deployment
 
-Bash
-npm run migration:generate -- src/database/migrations/NombreDeLaMigracion
-Aplicar Migraciones: (Sincroniza tu base de datos local con los últimos cambios)
+The backend exposes slot-aware health data and includes deployment scripts for:
 
-Bash
-npm run migration:run
-Revertir Cambios: (Deshace la última migración aplicada)
+- validating the inactive slot before promotion
+- switching traffic gradually through a load balancer hook
+- rolling back automatically on failed health or smoke checks
 
-Bash
-npm run migration:revert
+Operational steps are documented in [blue-green-deployment-runbook.md](/C:/Users/hp/Desktop/wave/Stellara_Contracts/Backend/docs/blue-green-deployment-runbook.md). The CI workflow entry point lives at [backend-blue-green.yml](/C:/Users/hp/Desktop/wave/Stellara_Contracts/.github/workflows/backend-blue-green.yml).
 
-3. Buenas Prácticas 
-Nunca modifiques manualmente las tablas en la base de datos; usa siempre archivos de migración.
+## License
 
-Revisa el archivo generado en src/database/migrations/ antes de hacer commit para asegurar que el SQL es el esperado.
-
-Asegúrate de que tu archivo .env apunte al puerto 5433 si usas el entorno Docker provisto.
+MIT

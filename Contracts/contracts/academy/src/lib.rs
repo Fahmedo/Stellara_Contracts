@@ -3,5 +3,5 @@
 pub mod vesting;
 
 pub use vesting::{
-    AcademyVestingContract, VestingSchedule, GrantEvent, ClaimEvent, RevokeEvent, VestingError,
+    AcademyVestingContract, ClaimEvent, GrantEvent, RevokeEvent, VestingError, VestingSchedule,
 };

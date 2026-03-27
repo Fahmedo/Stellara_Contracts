@@ -5,9 +5,9 @@ mod tests {
 
     fn create_test_env() -> (Env, Address, Address, Address) {
         let env = Env::default();
-        let admin = Address::random(&env);
-        let reward_token = Address::random(&env);
-        let governance = Address::random(&env);
+        let admin = Address::generate(&env);
+        let reward_token = Address::generate(&env);
+        let governance = Address::generate(&env);
 
         (env, admin, reward_token, governance)
     }
@@ -61,12 +61,12 @@ mod tests {
     #[test]
     fn test_grant_vesting_schedule() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -101,13 +101,13 @@ mod tests {
     #[test]
     fn test_grant_multiple_schedules() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary1 = Address::random(&env);
-        let beneficiary2 = Address::random(&env);
+        let beneficiary1 = Address::generate(&env);
+        let beneficiary2 = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -144,12 +144,12 @@ mod tests {
     #[test]
     fn test_grant_with_invalid_schedule() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -184,13 +184,13 @@ mod tests {
     #[test]
     fn test_non_admin_cannot_grant() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let non_admin = Address::random(&env);
-        let beneficiary = Address::random(&env);
+        let non_admin = Address::generate(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin,
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -213,12 +213,12 @@ mod tests {
     #[test]
     fn test_vesting_calculation_before_start() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -237,7 +237,7 @@ mod tests {
         .expect("Grant failed");
 
         // Mock ledger time to before start
-        env.ledger().set_timestamp(start_time - 100);
+        env.ledger().with_mut(|li| li.timestamp = start_time - 100);
 
         let vested = AcademyVestingContract::get_vested_amount(env, 1)
             .expect("Get vested failed");
@@ -248,12 +248,12 @@ mod tests {
     #[test]
     fn test_vesting_calculation_before_cliff() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -273,7 +273,7 @@ mod tests {
         .expect("Grant failed");
 
         // Mock ledger time to after start but before cliff
-        env.ledger().set_timestamp(start_time + cliff - 50);
+        env.ledger().with_mut(|li| li.timestamp = start_time + cliff - 50);
 
         let vested = AcademyVestingContract::get_vested_amount(env, 1)
             .expect("Get vested failed");
@@ -284,12 +284,12 @@ mod tests {
     #[test]
     fn test_vesting_calculation_after_cliff() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -311,7 +311,7 @@ mod tests {
         .expect("Grant failed");
 
         // Mock ledger time to exactly at cliff
-        env.ledger().set_timestamp(start_time + cliff);
+        env.ledger().with_mut(|li| li.timestamp = start_time + cliff);
 
         let vested = AcademyVestingContract::get_vested_amount(env, 1)
             .expect("Get vested failed");
@@ -322,12 +322,12 @@ mod tests {
     #[test]
     fn test_vesting_calculation_fully_vested() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -349,7 +349,7 @@ mod tests {
         .expect("Grant failed");
 
         // Mock ledger time to after full duration
-        env.ledger().set_timestamp(start_time + duration + 1000);
+        env.ledger().with_mut(|li| li.timestamp = start_time + duration + 1000);
 
         let vested = AcademyVestingContract::get_vested_amount(env, 1)
             .expect("Get vested failed");
@@ -360,12 +360,12 @@ mod tests {
     #[test]
     fn test_vesting_calculation_partial() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -388,7 +388,7 @@ mod tests {
 
         // Mock ledger time to 50% through vesting (after cliff)
         // Time: cliff + (duration - cliff) / 2 = 100 + 450 = 550
-        env.ledger().set_timestamp(start_time + cliff + 450);
+        env.ledger().with_mut(|li| li.timestamp = start_time + cliff + 450);
 
         let vested = AcademyVestingContract::get_vested_amount(env, 1)
             .expect("Get vested failed");
@@ -400,12 +400,12 @@ mod tests {
     #[test]
     fn test_claim_not_vested() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -424,7 +424,7 @@ mod tests {
         .expect("Grant failed");
 
         // Try to claim before vesting
-        env.ledger().set_timestamp(start_time - 100);
+        env.ledger().with_mut(|li| li.timestamp = start_time - 100);
 
         let result = AcademyVestingContract::claim(env, 1, beneficiary);
 
@@ -435,12 +435,12 @@ mod tests {
     #[test]
     fn test_claim_single_semantics_prevents_double_claim() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -459,7 +459,7 @@ mod tests {
         .expect("Grant failed");
 
         // Set time to after cliff
-        env.ledger().set_timestamp(start_time + 200);
+        env.ledger().with_mut(|li| li.timestamp = start_time + 200);
 
         // First claim should fail because insufficient balance (mock issue)
         // In real scenario with token setup, first claim would succeed
@@ -477,12 +477,12 @@ mod tests {
     #[test]
     fn test_claim_revoked_schedule() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -501,7 +501,7 @@ mod tests {
         .expect("Grant failed");
 
         // Revoke the schedule
-        env.ledger().set_timestamp(start_time + 3600); // After start + revoke_delay
+        env.ledger().with_mut(|li| li.timestamp = start_time + 3600); // After start + revoke_delay
         AcademyVestingContract::revoke(env.clone(), 1, admin.clone(), 3600)
             .expect("Revoke failed");
 
@@ -515,12 +515,12 @@ mod tests {
     #[test]
     fn test_revoke_invalid_timelock() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -546,12 +546,12 @@ mod tests {
     #[test]
     fn test_revoke_not_enough_time_elapsed() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -570,7 +570,7 @@ mod tests {
         .expect("Grant failed");
 
         // Try to revoke too early (before revoke_delay elapsed)
-        env.ledger().set_timestamp(start_time + 1000); // Only 1000 seconds elapsed
+        env.ledger().with_mut(|li| li.timestamp = start_time + 1000); // Only 1000 seconds elapsed
 
         let result = AcademyVestingContract::revoke(env, 1, admin, 3600); // 3600 second delay
 
@@ -581,12 +581,12 @@ mod tests {
     #[test]
     fn test_revoke_cannot_revoke_claimed() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -609,12 +609,12 @@ mod tests {
     #[test]
     fn test_revoke_cannot_revoke_twice() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -633,7 +633,7 @@ mod tests {
         .expect("Grant failed");
 
         // Set time to allow revocation
-        env.ledger().set_timestamp(start_time + 3600);
+        env.ledger().with_mut(|li| li.timestamp = start_time + 3600);
 
         // First revoke should succeed
         AcademyVestingContract::revoke(env.clone(), 1, admin.clone(), 3600)
@@ -649,13 +649,13 @@ mod tests {
     #[test]
     fn test_non_admin_cannot_revoke() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let non_admin = Address::random(&env);
-        let beneficiary = Address::random(&env);
+        let non_admin = Address::generate(&env);
+        let beneficiary = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin,
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -671,7 +671,7 @@ mod tests {
         )
         .expect("Grant failed");
 
-        env.ledger().set_timestamp(3600);
+        env.ledger().with_mut(|li| li.timestamp = 3600);
 
         // Non-admin tries to revoke
         let result = AcademyVestingContract::revoke(env, 1, non_admin, 3600);
@@ -683,13 +683,13 @@ mod tests {
     #[test]
     fn test_claim_wrong_beneficiary() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
-        let other = Address::random(&env);
+        let beneficiary = Address::generate(&env);
+        let other = Address::generate(&env);
 
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -705,7 +705,7 @@ mod tests {
         )
         .expect("Grant failed");
 
-        env.ledger().set_timestamp(200);
+        env.ledger().with_mut(|li| li.timestamp = 200);
 
         // Different beneficiary tries to claim
         let result = AcademyVestingContract::claim(env, 1, other);
@@ -721,7 +721,7 @@ mod tests {
         AcademyVestingContract::init(
             env.clone(),
             admin,
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -740,7 +740,7 @@ mod tests {
         AcademyVestingContract::init(
             env.clone(),
             admin,
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -755,13 +755,13 @@ mod tests {
     #[test]
     fn test_integration_complete_vesting_flow() {
         let (env, admin, _reward_token, governance) = create_test_env();
-        let beneficiary = Address::random(&env);
+        let beneficiary = Address::generate(&env);
 
         // Initialize contract
         AcademyVestingContract::init(
             env.clone(),
             admin.clone(),
-            Address::random(&env),
+            Address::generate(&env),
             governance,
         )
         .expect("Init failed");
@@ -784,19 +784,19 @@ mod tests {
         .expect("Grant failed");
 
         // Check vesting status before cliff
-        env.ledger().set_timestamp(start_time + 500);
+        env.ledger().with_mut(|li| li.timestamp = start_time + 500);
         let vested_before = AcademyVestingContract::get_vested_amount(env.clone(), grant_id)
             .expect("Get vested before cliff failed");
         assert_eq!(vested_before, 0);
 
         // Check vesting status at cliff
-        env.ledger().set_timestamp(start_time + cliff);
+        env.ledger().with_mut(|li| li.timestamp = start_time + cliff);
         let vested_at_cliff = AcademyVestingContract::get_vested_amount(env.clone(), grant_id)
             .expect("Get vested at cliff failed");
         assert_eq!(vested_at_cliff, 0); // Vesting starts linearly after cliff
 
         // Check vesting status midway
-        env.ledger().set_timestamp(start_time + cliff + (duration - cliff) / 2);
+        env.ledger().with_mut(|li| li.timestamp = start_time + cliff + (duration - cliff) / 2);
         let vested_midway = AcademyVestingContract::get_vested_amount(env.clone(), grant_id)
             .expect("Get vested midway failed");
         assert!(vested_midway > 0 && vested_midway < amount); // Partially vested

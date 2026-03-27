@@ -1,5 +1,4 @@
-#![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, symbol_short, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env};
 
 /// Vesting schedule for an academy reward
 #[contracttype]
@@ -8,11 +7,11 @@ pub struct VestingSchedule {
     pub beneficiary: Address,
     pub amount: i128,
     pub start_time: u64,
-    pub cliff: u64,                    // Time (in seconds) before any tokens unlock
-    pub duration: u64,                 // Total vesting duration (in seconds)
+    pub cliff: u64,    // Time (in seconds) before any tokens unlock
+    pub duration: u64, // Total vesting duration (in seconds)
     pub claimed: bool,
     pub revoked: bool,
-    pub revoke_time: u64,              // When it was revoked (0 if not revoked)
+    pub revoke_time: u64, // When it was revoked (0 if not revoked)
 }
 
 /// Vesting grant event for off-chain indexing
@@ -39,6 +38,30 @@ pub struct ClaimEvent {
     pub claimed_at: u64,
 }
 
+/// Alias event for vesting claim (VestingClaimed for indexer)
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct VestingClaimed {
+    pub grant_id: u64,
+    pub beneficiary: Address,
+    pub amount: i128,
+    pub claimed_at: u64,
+}
+
+/// Credential issued event (alias for grant event)
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct CredentialIssued {
+    pub grant_id: u64,
+    pub beneficiary: Address,
+    pub amount: i128,
+    pub start_time: u64,
+    pub cliff: u64,
+    pub duration: u64,
+    pub granted_at: u64,
+    pub granted_by: Address,
+}
+
 /// Revoke event for off-chain indexing
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -62,6 +85,24 @@ pub enum VestingError {
     Revoked = 4007,
     InvalidTimelock = 4008,
     NotEnoughTimeForRevoke = 4009,
+}
+
+impl From<VestingError> for soroban_sdk::Error {
+    fn from(error: VestingError) -> Self {
+        soroban_sdk::Error::from_contract_error(error as u32)
+    }
+}
+
+impl From<&VestingError> for soroban_sdk::Error {
+    fn from(error: &VestingError) -> Self {
+        soroban_sdk::Error::from_contract_error(*error as u32)
+    }
+}
+
+impl From<soroban_sdk::Error> for VestingError {
+    fn from(_error: soroban_sdk::Error) -> Self {
+        VestingError::Unauthorized
+    }
 }
 
 #[contract]
@@ -138,11 +179,7 @@ impl AcademyVestingContract {
 
         // Get next grant ID
         let counter_key = symbol_short!("cnt");
-        let grant_id: u64 = env
-            .storage()
-            .persistent()
-            .get(&counter_key)
-            .unwrap_or(0u64);
+        let grant_id: u64 = env.storage().persistent().get(&counter_key).unwrap_or(0u64);
 
         let next_id = grant_id + 1;
 
@@ -164,29 +201,44 @@ impl AcademyVestingContract {
             .storage()
             .persistent()
             .get(&schedules_key)
-            .unwrap_or_else(|_| soroban_sdk::Map::new(&env));
+            .unwrap_or_else(|| soroban_sdk::Map::new(&env));
 
         schedules.set(next_id, schedule);
         env.storage().persistent().set(&schedules_key, &schedules);
 
         // Update counter
-        env.storage()
-            .persistent()
-            .set(&counter_key, &next_id);
+        env.storage().persistent().set(&counter_key, &next_id);
+
+        let current_timestamp = env.ledger().timestamp();
 
         // Emit grant event
         let grant_event = GrantEvent {
+            grant_id: next_id,
+            beneficiary: beneficiary.clone(),
+            amount,
+            start_time,
+            cliff,
+            duration,
+            granted_at: current_timestamp,
+            granted_by: admin.clone(),
+        };
+
+        env.events().publish((symbol_short!("grant"),), grant_event);
+
+        // Emit CredentialIssued event (for indexer compatibility)
+        let credential_event = CredentialIssued {
             grant_id: next_id,
             beneficiary,
             amount,
             start_time,
             cliff,
             duration,
-            granted_at: env.ledger().timestamp(),
+            granted_at: current_timestamp,
             granted_by: admin,
         };
 
-        env.events().publish((symbol_short!("grant"),), grant_event);
+        env.events()
+            .publish((symbol_short!("cred_iss"),), credential_event);
 
         Ok(next_id)
     }
@@ -203,9 +255,7 @@ impl AcademyVestingContract {
             .get(&schedules_key)
             .ok_or(VestingError::GrantNotFound)?;
 
-        let mut schedule = schedules
-            .get(grant_id)
-            .ok_or(VestingError::GrantNotFound)?;
+        let mut schedule = schedules.get(grant_id).ok_or(VestingError::GrantNotFound)?;
 
         // Verify beneficiary matches
         if schedule.beneficiary != beneficiary {
@@ -224,10 +274,7 @@ impl AcademyVestingContract {
 
         // Calculate vested amount
         let current_time = env.ledger().timestamp();
-        let vested_amount = Self::calculate_vested_amount(
-            &schedule,
-            current_time,
-        )?;
+        let vested_amount = Self::calculate_vested_amount(&schedule, current_time)?;
 
         if vested_amount == 0 {
             return Err(VestingError::NotVested);
@@ -260,15 +307,28 @@ impl AcademyVestingContract {
             &vested_amount,
         );
 
+        let current_time = env.ledger().timestamp();
+
         // Emit claim event
         let claim_event = ClaimEvent {
             grant_id,
-            beneficiary,
+            beneficiary: beneficiary.clone(),
             amount: vested_amount,
-            claimed_at: env.ledger().timestamp(),
+            claimed_at: current_time,
         };
 
         env.events().publish((symbol_short!("claim"),), claim_event);
+
+        // Emit VestingClaimed event (for indexer)
+        let vesting_claimed = VestingClaimed {
+            grant_id,
+            beneficiary,
+            amount: vested_amount,
+            claimed_at: current_time,
+        };
+
+        env.events()
+            .publish((symbol_short!("v_claimed"),), vesting_claimed);
 
         Ok(vested_amount)
     }
@@ -302,9 +362,7 @@ impl AcademyVestingContract {
             .get(&schedules_key)
             .ok_or(VestingError::GrantNotFound)?;
 
-        let mut schedule = schedules
-            .get(grant_id)
-            .ok_or(VestingError::GrantNotFound)?;
+        let mut schedule = schedules.get(grant_id).ok_or(VestingError::GrantNotFound)?;
 
         // Cannot revoke already claimed
         if schedule.claimed {
@@ -341,7 +399,8 @@ impl AcademyVestingContract {
             revoked_by: admin,
         };
 
-        env.events().publish((symbol_short!("revoke"),), revoke_event);
+        env.events()
+            .publish((symbol_short!("revoke"),), revoke_event);
 
         Ok(())
     }
@@ -355,9 +414,7 @@ impl AcademyVestingContract {
             .get(&schedules_key)
             .ok_or(VestingError::GrantNotFound)?;
 
-        schedules
-            .get(grant_id)
-            .ok_or(VestingError::GrantNotFound)
+        schedules.get(grant_id).ok_or(VestingError::GrantNotFound)
     }
 
     /// Calculate vested amount at current time
@@ -369,9 +426,7 @@ impl AcademyVestingContract {
             .get(&schedules_key)
             .ok_or(VestingError::GrantNotFound)?;
 
-        let schedule = schedules
-            .get(grant_id)
-            .ok_or(VestingError::GrantNotFound)?;
+        let schedule = schedules.get(grant_id).ok_or(VestingError::GrantNotFound)?;
 
         let current_time = env.ledger().timestamp();
         Self::calculate_vested_amount(&schedule, current_time)
@@ -406,8 +461,8 @@ impl AcademyVestingContract {
         }
 
         // Use fixed-point arithmetic to avoid floating point
-        let vested_amount = (schedule.amount as u128 * vested_duration as u128)
-            / remaining_duration as u128;
+        let vested_amount =
+            (schedule.amount as u128 * vested_duration as u128) / remaining_duration as u128;
 
         Ok(vested_amount as i128)
     }
@@ -439,6 +494,3 @@ impl AcademyVestingContract {
         Ok((admin, token, governance))
     }
 }
-
-#[cfg(test)]
-mod tests;

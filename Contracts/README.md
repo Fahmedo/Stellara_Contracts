@@ -53,7 +53,7 @@ This repository contains four core smart contracts that power the Stellara ecosy
 
 ## Prerequisites
 
-- Rust 1.70 or later
+- Rust 1.70 or later (Install via https://rustup.rs/ - required for running `cargo test`)
 - Soroban SDK 20.5.0
 - Stellar CLI tools
 
@@ -73,6 +73,9 @@ cargo build --release --target wasm32-unknown-unknown
 ```bash
 # Run all tests (including new governance tests)
 cargo test --all
+
+# On Windows (PowerShell), you can use the provided script:
+# .\test.ps1
 
 # Run specific contract tests
 cd contracts/trading

@@ -1,0 +1,3 @@
+# Disable problematic features for stellar-xdr during test builds
+[env]
+RUSTFLAGS = "--cfg loom_disable_deadlock_detector"

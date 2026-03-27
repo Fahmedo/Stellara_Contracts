@@ -3,5 +3,11 @@ name = "shared"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+testutils = ["soroban-sdk/testutils"]
+
 [dependencies]
-soroban-sdk = "20.5.0"
+soroban-sdk = { version = "20.5.0", default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+soroban-sdk = { version = "20.5.0", features = ["testutils"], default-features = false }

@@ -1,16 +1,25 @@
-﻿services:
-  db:
-    image: postgres:15-alpine
-    container_name: stellara_db
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: backend-postgres
+    restart: unless-stopped
+    command: postgres -c shared_preload_libraries=pg_stat_statements
     environment:
-      # Use .env file or environment variables instead of plaintext
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: ${DB_DATABASE:-stellara_db}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app_db
+      # WAL Archiving Configuration
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     ports:
-      - "${DB_PORT:-5433}:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./scripts/wal-archive.sh:/usr/local/bin/wal-archive.sh:ro
+      - ./scripts/wal-restore.sh:/usr/local/bin/wal-restore.sh:ro
+    command: >
+      postgres
+      -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -19,34 +28,80 @@
 
   redis:
     image: redis:7-alpine
-    container_name: stellara_redis
-    command: redis-server ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    container_name: backend-redis
+    restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    volumes:
-      - redis_data:/data
 
-  vault:
-    image: vault:latest
-    container_name: stellara_vault
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: devroot
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: backend-rabbitmq
+    restart: unless-stopped
     ports:
-      - "8200:8200"
-    cap_add:
-      - IPC_LOCK
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8200/v1/sys/health"]
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    command: server -dev
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: backend-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      API_PREFIX: api/v1
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_NAME: app_db
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: local_development_secret
+      JWT_EXPIRATION: 900
+      JWT_REFRESH_EXPIRATION: 7d
+      STELLAR_NETWORK: testnet
+      STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+      PROJECT_LAUNCH_CONTRACT_ID: demo-project-launch
+      ESCROW_CONTRACT_ID: demo-escrow
+      INDEXER_POLL_INTERVAL_MS: 5000
+      INDEXER_REORG_DEPTH_THRESHOLD: 5
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: npm run start:dev
 
 volumes:
   postgres_data:

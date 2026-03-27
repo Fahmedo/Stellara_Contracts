@@ -5,11 +5,12 @@ use soroban_sdk::contracttype;
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct ContractConfig {
-    pub admin: String,
+    pub admin: soroban_sdk::String,
     pub version: u32,
     pub is_paused: bool,
 }
 
+pub mod acl;
 pub mod fees;
 pub mod governance;
 

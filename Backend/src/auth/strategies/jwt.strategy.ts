@@ -1,40 +1,60 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PassportStrategy } from '@nestjs/passport';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../entities/user.entity';
-import { JwtPayload } from '../services/jwt-auth.service';
+import { Request } from 'express';
+import { AuthService } from '../auth.service';
+import { SessionService } from '../../sessions/session.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
-    private readonly configService: ConfigService,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private configService: ConfigService,
+    private authService: AuthService,
+    private readonly sessionService: SessionService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        (request: Request) => {
+          let token = null;
+          if (request && request.cookies) {
+            token = request.cookies['access_token'];
+          }
+          if (!token && request.headers.authorization) {
+            token = request.headers.authorization.split(' ')[1];
+          }
+          return token;
+        },
+      ]),
       ignoreExpiration: false,
-      secretOrKey: configService.get('JWT_SECRET'),
+      secretOrKey: configService.get<string>('JWT_SECRET', 'super_secret_key_for_development'),
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: JwtPayload): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { id: payload.sub },
-      relations: ['wallets'],
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('User not found');
+  async validate(request: Request, payload: any) {
+    let token = request.cookies?.['access_token'];
+    if (!token && request.headers.authorization) {
+      token = request.headers.authorization.split(' ')[1];
     }
 
-    if (!user.isActive) {
-      throw new UnauthorizedException('User account is inactive');
+    if (token) {
+      const isBlacklisted = await this.authService.isTokenBlacklisted(token);
+      if (isBlacklisted) {
+        throw new UnauthorizedException('Token is blacklisted');
+      }
     }
 
-    return user;
+    if (payload.sid) {
+      await this.sessionService.validateAccessSession(payload.sub, payload.sid, request);
+    }
+
+    return {
+      id: payload.sub,
+      walletAddress: payload.walletAddress,
+      roles: payload.roles,
+      sessionId: payload.sid,
+      subscriptionTier: payload.subscriptionTier,
+    };
   }
 }

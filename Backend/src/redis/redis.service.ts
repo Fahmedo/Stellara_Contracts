@@ -1,33 +1,46 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { createClient, RedisClientType } from 'redis';
+import { Injectable, OnApplicationShutdown } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import Redis, { RedisOptions } from 'ioredis';
 
 @Injectable()
-export class RedisService
-  implements OnModuleInit, OnModuleDestroy
-{
-  public client: RedisClientType;
-  public pubClient: RedisClientType;
-  public subClient: RedisClientType;
+export class RedisService implements OnApplicationShutdown {
+  private readonly client: Redis;
+  private readonly bullConnection: RedisOptions;
 
-  async onModuleInit() {
-    const url = process.env.REDIS_URL || 'redis://localhost:6379';
+  constructor(private readonly configService: ConfigService) {
+    const host = this.configService.get<string>('REDIS_HOST', 'localhost');
+    const port = parseInt(this.configService.get<string>('REDIS_PORT', '6379'), 10);
+    const password = this.configService.get<string>('REDIS_PASSWORD');
 
-    this.client = createClient({ url });
-    this.pubClient = createClient({ url });
-    this.subClient = createClient({ url });
+    this.bullConnection = {
+      host,
+      port,
+      password,
+      maxRetriesPerRequest: null,
+    };
 
-    await Promise.all([
-      this.client.connect(),
-      this.pubClient.connect(),
-      this.subClient.connect(),
-    ]);
+    this.client = new Redis(this.bullConnection);
   }
 
-  async onModuleDestroy() {
-    await Promise.all([
-      this.client.quit(),
-      this.pubClient.quit(),
-      this.subClient.quit(),
-    ]);
+  getClient(): Redis {
+    return this.client;
+  }
+
+  getBullConnection(): RedisOptions {
+    return { ...this.bullConnection };
+  }
+
+  async ping(): Promise<string> {
+    return this.client.ping();
+  }
+
+  async onApplicationShutdown(): Promise<void> {
+    if (this.client.status === 'end') {
+      return;
+    }
+
+    await this.client.quit().catch(async () => {
+      await this.client.disconnect(false);
+    });
   }
 }

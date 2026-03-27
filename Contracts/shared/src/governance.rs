@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Env, Vec, Symbol, symbol_short};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 
 /// Upgrade proposal that must be approved via governance
 #[contracttype]
@@ -9,18 +9,18 @@ pub struct UpgradeProposal {
     pub new_contract_hash: Symbol,
     pub target_contract: Address,
     pub description: Symbol,
-    pub approval_threshold: u32,           // e.g., 2 of 3
+    pub approval_threshold: u32, // e.g., 2 of 3
     pub approvers: Vec<Address>,
     pub approvals_count: u32,
     pub status: ProposalStatus,
     pub created_at: u64,
-    pub execution_time: u64,               // Timelock: when it can be executed
+    pub execution_time: u64, // Timelock: when it can be executed
     pub executed: bool,
 }
 
 /// Status of an upgrade proposal
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ProposalStatus {
     Pending = 0,
@@ -32,12 +32,12 @@ pub enum ProposalStatus {
 
 /// Governance role
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum GovernanceRole {
-    Admin = 0,        // Can propose upgrades and cancel
-    Approver = 1,     // Can approve/reject proposals
-    Executor = 2,     // Can execute approved proposals (after timelock)
+    Admin = 0,    // Can propose upgrades and cancel
+    Approver = 1, // Can approve/reject proposals
+    Executor = 2, // Can execute approved proposals (after timelock)
 }
 
 /// Governance error codes
@@ -54,6 +54,18 @@ pub enum GovernanceError {
     ProposalNotFound = 2008,
 }
 
+impl From<GovernanceError> for soroban_sdk::Error {
+    fn from(error: GovernanceError) -> Self {
+        soroban_sdk::Error::from_contract_error(error as u32)
+    }
+}
+
+impl From<soroban_sdk::Error> for GovernanceError {
+    fn from(_error: soroban_sdk::Error) -> Self {
+        GovernanceError::Unauthorized
+    }
+}
+
 pub struct GovernanceManager;
 
 impl GovernanceManager {
@@ -64,12 +76,14 @@ impl GovernanceManager {
             .storage()
             .persistent()
             .get(&roles_key)
-            .unwrap_or_else(|_| soroban_sdk::Map::new(env));
+            .unwrap_or_else(|| soroban_sdk::Map::new(env));
 
-        let user_role = role_map.get(address.clone()).unwrap_or(GovernanceRole::Executor);
-        
+        let user_role = role_map
+            .get(address.clone())
+            .unwrap_or(GovernanceRole::Executor);
+
         if user_role > required_role {
-            env.panic_with_error(symbol_short!("UNAUTH"));
+            panic!("UNAUTH");
         }
     }
 
@@ -88,7 +102,7 @@ impl GovernanceManager {
         Self::require_role(env, &proposer, GovernanceRole::Admin);
 
         // Validate threshold
-        if approval_threshold == 0 || approval_threshold as usize > approvers.len() {
+        if approval_threshold == 0 || approval_threshold > approvers.len() as u32 {
             return Err(GovernanceError::InvalidThreshold);
         }
 
@@ -123,7 +137,7 @@ impl GovernanceManager {
             .storage()
             .persistent()
             .get(&proposals_key)
-            .unwrap_or_else(|_| soroban_sdk::Map::new(env));
+            .unwrap_or_else(|| soroban_sdk::Map::new(env));
 
         proposals.set(next_id, proposal);
         env.storage().persistent().set(&proposals_key, &proposals);
@@ -162,7 +176,7 @@ impl GovernanceManager {
         }
 
         // Validate approver is in the list
-        if !proposal.approvers.iter().any(|a| a == &approver) {
+        if !proposal.approvers.iter().any(|a| a == approver) {
             return Err(GovernanceError::Unauthorized);
         }
 
@@ -172,7 +186,7 @@ impl GovernanceManager {
             .storage()
             .persistent()
             .get(&approvals_key)
-            .unwrap_or_else(|_| soroban_sdk::Map::new(env));
+            .unwrap_or_else(|| soroban_sdk::Map::new(env));
 
         if approvals.get((proposal_id, approver.clone())).is_some() {
             return Err(GovernanceError::DuplicateApproval);
@@ -297,10 +311,7 @@ impl GovernanceManager {
     }
 
     /// Get a proposal by ID
-    pub fn get_proposal(
-        env: &Env,
-        proposal_id: u64,
-    ) -> Result<UpgradeProposal, GovernanceError> {
+    pub fn get_proposal(env: &Env, proposal_id: u64) -> Result<UpgradeProposal, GovernanceError> {
         let proposals_key = symbol_short!("props");
         let proposals: soroban_sdk::Map<u64, UpgradeProposal> = env
             .storage()

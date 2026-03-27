@@ -1,60 +1,123 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AbiRegistryModule } from './abi-registry/abi-registry.module';
+import { ExperimentsModule } from './experiments/experiments.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { KycModule } from './kyc/kyc.module';
+import { CollateralModule } from './collateral/collateral.module';
+import { GeolocationModule } from './geolocation/geolocation.module';
+
+import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { RedisModule } from './redis/redis.module';
-import { VoiceModule } from './voice/voice.module';
-import { DatabaseModule } from './database/database.module';
-import { StellarMonitorModule } from './stellar-monitor/stellar-monitor.module';
-import { WorkflowModule } from './workflow/workflow.module';
-import { QueueModule } from './queue/queue.module';
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
-import { Workflow } from './workflow/entities/workflow.entity';
-import { WorkflowStep } from './workflow/entities/workflow-step.entity';
-import { User } from './auth/entities/user.entity';
-import { WalletBinding } from './auth/entities/wallet-binding.entity';
-import { LoginNonce } from './auth/entities/login-nonce.entity';
-import { RefreshToken } from './auth/entities/refresh-token.entity';
-import { ApiToken } from './auth/entities/api-token.entity';
+import { BackupModule } from './backup/backup.module';
+import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from './database.module';
+import { DocsController } from './docs/docs.controller';
+import { ErrorHandlingModule } from './common/error-handling.module';
+import { IndexAnalysisModule } from './index-analysis/index-analysis.module';
+import { LifecycleModule } from './lifecycle/lifecycle.module';
+import { LoggingModule } from './logging/logging.module';
+import { Module } from '@nestjs/common';
+import { PaymentModule } from './payment/payment.module';
+import { PrismaModule } from './prisma.module';
+import { QuotaModule } from './quota/quota.module';
+import { RabbitmqModule } from './messaging/rabbitmq/rabbitmq.module';
+import { RateLimitModule } from './rate-limiting/rate-limit.module';
+import { RedisModule } from './redis/redis.module';
+import { ReputationModule } from './reputation/reputation.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { SessionModule } from './sessions/session.module';
+import { TenantModule } from './tenant/tenant.module';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { UserController } from './user.controller';
+import { WebhooksModule } from './webhooks/webhooks.module';
+import { WebsocketModule } from './websocket/websocket.module';
+import { validateEnv } from './config/env.validation';
+
+import { SupportModule } from './support/support.module';
+import { MultisigModule } from './multisig/multisig.module';
+import { VestingModule } from './vesting/vesting.module';
+import { LiquidityMiningModule } from './liquidity-mining/liquidity-mining.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { GraphqlModule } from './graphql/graphql.module';
+import { ObjectStorageModule } from './object-storage/object-storage.module';
+import { FailoverModule } from './failover/failover.module';
+import { CostMonitoringModule } from './cost-monitoring/cost-monitoring.module';
+import { DataResidencyModule } from './data-residency/data-residency.module';
+import { PredictiveMaintenanceModule } from './predictive-maintenance/predictive-maintenance.module';
+import { SecretsManagementModule } from './secrets-management/secrets-management.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env',
+      validate: validateEnv,
     }),
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('DB_HOST') || 'localhost',
-        port: configService.get('DB_PORT') || 5432,
-        username: configService.get('DB_USERNAME') || 'postgres',
-        password: configService.get('DB_PASSWORD') || 'password',
-        database: configService.get('DB_DATABASE') || 'stellara_workflows',
-        entities: [
-          Workflow,
-          WorkflowStep,
-          User,
-          WalletBinding,
-          LoginNonce,
-          RefreshToken,
-          ApiToken,
-        ],
-        synchronize: configService.get('NODE_ENV') === 'development',
-        logging: configService.get('NODE_ENV') === 'development',
-      }),
-      inject: [ConfigService],
+    ScheduleModule.forRoot(),
+    // Structured logging with correlation IDs and performance tracing
+    LoggingModule.forRoot({
+      enableRequestLogging: true,
+      enablePerformanceTracing: true,
+      defaultContext: 'Application',
     }),
-    DatabaseModule,
+    // Global rate limiting with Redis storage
+    ThrottlerModule.forRootAsync({
+      useFactory: () =>
+        ({
+          ttl: 60, // time window in seconds
+          limit: 100, // default requests per window
+          storage: new ThrottlerStorageRedisService({
+            host: process.env.REDIS_HOST || 'localhost',
+            port: parseInt(process.env.REDIS_PORT || '6379', 10),
+            password: process.env.REDIS_PASSWORD || undefined,
+          }),
+        }) as never,
+    }),
+    // Error handling with global filters
+    ErrorHandlingModule,
+    // Comprehensive audit logging for compliance
+    AuditModule,
+    ReputationModule,
     RedisModule,
+    DatabaseModule,
+    PrismaModule,
+    LifecycleModule,
+    RateLimitModule,
+    SessionModule,
+    IndexAnalysisModule,
     AuthModule,
-    VoiceModule,
-    StellarMonitorModule,
-    WorkflowModule,
-    QueueModule,
+    WebsocketModule,
+    PaymentModule,
+    // Backup and disaster recovery module
+    BackupModule,
+    QuotaModule,
+    AdminModule,
+    TenantModule,
+    WebhooksModule,
+    RabbitmqModule,
+    AbiRegistryModule,
+    SupportModule,
+    MultisigModule,
+    AnalyticsModule,
+    ExperimentsModule,
+    KycModule,
+    CollateralModule,
+    GeolocationModule,
+    VestingModule,
+    LiquidityMiningModule,
+    MonitoringModule,
+    GraphqlModule,
+    ObjectStorageModule,
+    FailoverModule,
+    CostMonitoringModule,
+    DataResidencyModule,
+    PredictiveMaintenanceModule,
+    SecretsManagementModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, UserController, DocsController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
