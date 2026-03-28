@@ -64,6 +64,7 @@ import { PredictiveSettlementModule } from './predictive-settlement/predictive-s
 import { HFTModule } from './hft/hft.module';
 import { QuantumCryptoModule } from './crypto/quantum/quantum-crypto.module';
 import { AIAuditorModule } from './ai-auditor/ai-auditor.module';
+import { SyntheticAssetsModule } from './synthetic-assets/synthetic-assets.module';
 
 
 @Module({
@@ -153,6 +154,7 @@ import { AIAuditorModule } from './ai-auditor/ai-auditor.module';
     HFTModule,
     QuantumCryptoModule,
     AIAuditorModule,
+    SyntheticAssetsModule,
 
   ],
   controllers: [AppController, UserController, DocsController],
