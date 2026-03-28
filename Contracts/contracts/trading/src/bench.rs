@@ -226,3 +226,91 @@ fn test_gas_benchmark_admin_operations() {
     assert!(pause_cpu > 0);
     assert!(unpause_cpu > 0);
 }
+
+#[test]
+fn test_gas_benchmark_batch_vs_individual() {
+    let env = Env::default();
+    env.ledger().with_mut(|li| li.timestamp = 1000);
+
+    // Benchmark individual trades
+    let mut individual_total_cpu = 0u64;
+    let mut individual_total_mem = 0u64;
+
+    for _ in 0..3 {
+        let (cpu, mem) = GasBenchmark::bench_trade(&env);
+        individual_total_cpu += cpu;
+        individual_total_mem += mem;
+    }
+
+    // Benchmark batch trade
+    let (batch_cpu, batch_mem) = GasBenchmark::bench_batch_trade(&env, 3);
+
+    println!("\nBatch vs Individual Trade Comparison:");
+    println!(
+        "  3 Individual Trades - CPU: {}, MEM: {}",
+        individual_total_cpu, individual_total_mem
+    );
+    println!(
+        "  1 Batch Trade (3 orders) - CPU: {}, MEM: {}",
+        batch_cpu, batch_mem
+    );
+
+    let cpu_savings = if batch_cpu < individual_total_cpu {
+        ((individual_total_cpu - batch_cpu) as f64 / individual_total_cpu as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    println!("  CPU Savings: {:.2}%", cpu_savings);
+
+    // Batch should be more efficient
+    assert!(
+        batch_cpu < individual_total_cpu,
+        "Batch trade should use less CPU"
+    );
+}
+
+impl GasBenchmark {
+    /// Benchmark batch trade operation
+    pub fn bench_batch_trade(env: &Env, order_count: u32) -> (u64, u64) {
+        let contract_id = env.register_contract(None, UpgradeableTradingContract);
+        let client = UpgradeableTradingContractClient::new(env, &contract_id);
+
+        let admin = Address::generate(env);
+        let trader = Address::generate(env);
+        let approver = Address::generate(env);
+        let executor = Address::generate(env);
+        let fee_recipient = Address::generate(env);
+
+        let mut approvers = Vec::new(env);
+        approvers.push_back(approver);
+
+        env.mock_all_auths();
+        client.init(&admin, &approvers, &executor);
+
+        let token_id = env.register_stellar_asset_contract(fee_recipient.clone());
+
+        // Create batch orders
+        let mut orders = Vec::new(env);
+        for i in 0..order_count {
+            orders.push_back((
+                symbol_short!("BTCUSD"),
+                1_000_000i128 + i as i128,
+                50_000i128,
+                true,
+            ));
+        }
+
+        // Reset budget before measurement
+        env.budget().reset_default();
+
+        // Execute batch trade
+        let _ = client.trade_batch(&trader, &orders, &token_id, &0i128, &fee_recipient);
+
+        // Get measurements
+        let cpu_insns = env.budget().cpu_instruction_cost();
+        let mem_bytes = env.budget().memory_bytes_cost();
+
+        (cpu_insns, mem_bytes)
+    }
+}

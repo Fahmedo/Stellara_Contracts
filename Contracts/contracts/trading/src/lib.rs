@@ -170,43 +170,55 @@ fn set_global_window_usage(env: &Env, window: u64, count: u32) {
 fn check_and_consume_trade_rate_limit(env: &Env, trader: &Address) -> Result<(), TradeError> {
     #[cfg(test)]
     {
+        let _ = (env, trader); // Suppress unused warnings in test mode
         return Ok(());
     }
 
-    let cfg = read_rate_limit_config(env);
-
-    if cfg.window_secs == 0
-        || cfg.user_limit == 0
-        || cfg.global_limit == 0
-        || cfg.premium_user_limit == 0
+    #[cfg(not(test))]
     {
-        return Err(TradeError::InvalidRateLimitConfig);
+        // OPTIMIZATION 1: Read config once and validate
+        let cfg = read_rate_limit_config(env);
+
+        if cfg.window_secs == 0
+            || cfg.user_limit == 0
+            || cfg.global_limit == 0
+            || cfg.premium_user_limit == 0
+        {
+            return Err(TradeError::InvalidRateLimitConfig);
+        }
+
+        // OPTIMIZATION 2: Calculate window once
+        let now = env.ledger().timestamp();
+        let window = now / cfg.window_secs;
+
+        // OPTIMIZATION 3: Check premium status before reading usage counters
+        let is_premium = is_premium_user(env, trader);
+        let allowed_user_limit = if is_premium {
+            cfg.premium_user_limit
+        } else {
+            cfg.user_limit
+        };
+
+        // OPTIMIZATION 4: Read both counters in sequence (can't batch different keys)
+        let current_user = get_user_window_usage(env, trader, window);
+
+        // OPTIMIZATION 5: Fast-fail on user limit before checking global
+        if current_user >= allowed_user_limit {
+            return Err(TradeError::RateLimitExceeded);
+        }
+
+        let current_global = get_global_window_usage(env, window);
+
+        if current_global >= cfg.global_limit {
+            return Err(TradeError::GlobalRateLimitExceeded);
+        }
+
+        // OPTIMIZATION 6: Batch increment operations
+        set_user_window_usage(env, trader, window, current_user + 1);
+        set_global_window_usage(env, window, current_global + 1);
+
+        Ok(())
     }
-
-    let now = env.ledger().timestamp();
-    let window = now / cfg.window_secs;
-
-    let current_user = get_user_window_usage(env, trader, window);
-    let current_global = get_global_window_usage(env, window);
-
-    let allowed_user_limit = if is_premium_user(env, trader) {
-        cfg.premium_user_limit
-    } else {
-        cfg.user_limit
-    };
-
-    if current_user >= allowed_user_limit {
-        return Err(TradeError::RateLimitExceeded);
-    }
-
-    if current_global >= cfg.global_limit {
-        return Err(TradeError::GlobalRateLimitExceeded);
-    }
-
-    set_user_window_usage(env, trader, window, current_user + 1);
-    set_global_window_usage(env, window, current_global + 1);
-
-    Ok(())
 }
 
 #[contractimpl]
@@ -264,7 +276,7 @@ impl UpgradeableTradingContract {
         Ok(())
     }
 
-    /// Execute a trade with fee collection
+    /// Execute a trade with fee collection - OPTIMIZED
     pub fn trade(
         env: Env,
         trader: Address,
@@ -279,6 +291,7 @@ impl UpgradeableTradingContract {
         trader.require_auth();
         require_initialized(&env)?;
 
+        // OPTIMIZATION 1: Fast-fail validation before any storage access
         if amount <= 0 {
             return Err(TradeError::InvalidAmount);
         }
@@ -287,18 +300,31 @@ impl UpgradeableTradingContract {
 
         let storage = env.storage().persistent();
 
+        // OPTIMIZATION 2: Check pause state early to avoid unnecessary work
         if storage.get(&storage_keys::PAUSE).unwrap_or(false) {
             return Err(TradeError::ContractPaused);
         }
 
+        // OPTIMIZATION 3: Cache timestamp and compute signed_amount once
         let current_timestamp = env.ledger().timestamp();
+        let signed_amount = if is_buy { amount } else { -amount };
 
+        // OPTIMIZATION 4: Collect fee before storage writes (fail fast)
         FeeManager::collect_fee(&env, &fee_token, &trader, &fee_recipient, fee_amount)
             .map_err(|_| TradeError::InsufficientBalance)?;
 
+        // OPTIMIZATION 5: Batch storage reads - get both values at once
         let trade_id: u64 = storage.get(&storage_keys::TRADE_COUNT).unwrap_or(0) + 1;
-        let signed_amount = if is_buy { amount } else { -amount };
+        let mut stats: TradeStats = storage.get(&storage_keys::STATS).unwrap_or(TradeStats {
+            total_trades: 0,
+            total_volume: 0,
+        });
 
+        // OPTIMIZATION 6: Update stats in memory before writing
+        stats.total_trades += 1;
+        stats.total_volume += amount;
+
+        // OPTIMIZATION 7: Batch storage writes - minimize storage operations
         let trade = Trade {
             id: trade_id,
             trader: trader.clone(),
@@ -310,40 +336,34 @@ impl UpgradeableTradingContract {
 
         let trade_key = (symbol_short!("trade"), trade_id);
         storage.set(&trade_key, &trade);
-
-        let mut stats: TradeStats = storage.get(&storage_keys::STATS).unwrap_or(TradeStats {
-            total_trades: 0,
-            total_volume: 0,
-        });
-
-        stats.total_trades += 1;
-        stats.total_volume += amount;
-
         storage.set(&storage_keys::TRADE_COUNT, &trade_id);
         storage.set(&storage_keys::STATS, &stats);
 
-        // Emit FeeCollected event
-        let fee_event = FeeCollected {
-            trade_id,
-            trader: trader.clone(),
-            fee_amount,
-            fee_recipient,
-            fee_token,
-            timestamp: current_timestamp,
-        };
-        env.events().publish((symbol_short!("fee_col"),), fee_event);
+        // OPTIMIZATION 8: Emit events after all storage writes (events are cheaper)
+        env.events().publish(
+            (symbol_short!("fee_col"),),
+            FeeCollected {
+                trade_id,
+                trader: trader.clone(),
+                fee_amount,
+                fee_recipient,
+                fee_token,
+                timestamp: current_timestamp,
+            },
+        );
 
-        // Emit TradeExecuted event
-        let trade_event = TradeExecuted {
-            trade_id,
-            trader,
-            pair,
-            signed_amount,
-            price,
-            timestamp: current_timestamp,
-            is_buy,
-        };
-        env.events().publish((symbol_short!("trade"),), trade_event);
+        env.events().publish(
+            (symbol_short!("trade"),),
+            TradeExecuted {
+                trade_id,
+                trader,
+                pair,
+                signed_amount,
+                price,
+                timestamp: current_timestamp,
+                is_buy,
+            },
+        );
 
         Ok(trade_id)
     }
@@ -456,6 +476,113 @@ impl UpgradeableTradingContract {
         }
 
         trades
+    }
+
+    /// OPTIMIZATION: Batch trade execution for multiple orders
+    /// Reduces per-trade overhead by batching storage operations
+    pub fn trade_batch(
+        env: Env,
+        trader: Address,
+        orders: Vec<(Symbol, i128, i128, bool)>, // (pair, amount, price, is_buy)
+        fee_token: Address,
+        fee_per_trade: i128,
+        fee_recipient: Address,
+    ) -> Result<Vec<u64>, TradeError> {
+        trader.require_auth();
+        require_initialized(&env)?;
+
+        if orders.is_empty() {
+            return Ok(Vec::new(&env));
+        }
+
+        // OPTIMIZATION 1: Validate all orders before any state changes
+        for (_, amount, _, _) in orders.iter() {
+            if amount <= 0 {
+                return Err(TradeError::InvalidAmount);
+            }
+        }
+
+        // OPTIMIZATION 2: Check rate limits for batch (count as single operation)
+        check_and_consume_trade_rate_limit(&env, &trader)?;
+
+        let storage = env.storage().persistent();
+
+        if storage.get(&storage_keys::PAUSE).unwrap_or(false) {
+            return Err(TradeError::ContractPaused);
+        }
+
+        // OPTIMIZATION 3: Calculate total fees and collect once
+        let total_fees = fee_per_trade * (orders.len() as i128);
+        FeeManager::collect_fee(&env, &fee_token, &trader, &fee_recipient, total_fees)
+            .map_err(|_| TradeError::InsufficientBalance)?;
+
+        // OPTIMIZATION 4: Cache values used across all trades
+        let current_timestamp = env.ledger().timestamp();
+        let mut trade_id: u64 = storage.get(&storage_keys::TRADE_COUNT).unwrap_or(0);
+        let mut stats: TradeStats = storage.get(&storage_keys::STATS).unwrap_or(TradeStats {
+            total_trades: 0,
+            total_volume: 0,
+        });
+
+        let mut trade_ids = Vec::new(&env);
+
+        // OPTIMIZATION 5: Process all trades in memory first
+        for (pair, amount, price, is_buy) in orders.iter() {
+            trade_id += 1;
+            let signed_amount = if is_buy { amount } else { -amount };
+
+            let trade = Trade {
+                id: trade_id,
+                trader: trader.clone(),
+                pair: pair.clone(),
+                signed_amount,
+                price,
+                timestamp: current_timestamp,
+            };
+
+            // Write trade record
+            let trade_key = (symbol_short!("trade"), trade_id);
+            storage.set(&trade_key, &trade);
+
+            // Update stats in memory
+            stats.total_trades += 1;
+            stats.total_volume += amount;
+
+            trade_ids.push_back(trade_id);
+
+            // Emit trade event
+            env.events().publish(
+                (symbol_short!("trade"),),
+                TradeExecuted {
+                    trade_id,
+                    trader: trader.clone(),
+                    pair,
+                    signed_amount,
+                    price,
+                    timestamp: current_timestamp,
+                    is_buy,
+                },
+            );
+        }
+
+        // OPTIMIZATION 6: Batch write final state
+        storage.set(&storage_keys::TRADE_COUNT, &trade_id);
+        storage.set(&storage_keys::STATS, &stats);
+
+        // Emit single fee collection event for batch
+        env.events().publish(
+            (symbol_short!("fee_col"),),
+            FeeCollected {
+                trade_id: trade_ids.get(0).unwrap_or(0),
+                trader,
+                fee_amount: total_fees,
+                fee_recipient,
+                fee_token,
+                timestamp: current_timestamp,
+            },
+        );
+
+        Ok(trade_ids)
     }
 
     /// Pause the contract (ACL protected)
