@@ -1,0 +1,285 @@
+name: Load Testing & Performance Benchmarking
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of load test to run'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+        - smoke
+        - full
+        - stress
+        - soak
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  NODE_VERSION: '18'
+  K6_VERSION: '0.49.0'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.check.outputs.should-run }}
+      test-type: ${{ steps.check.outputs.test-type }}
+      environment: ${{ steps.check.outputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine test configuration
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "test-type=full" >> $GITHUB_OUTPUT
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "test-type=${{ github.event.inputs.test_type }}" >> $GITHUB_OUTPUT
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "test-type=smoke" >> $GITHUB_OUTPUT
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            # For pushes to main/develop
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "test-type=full" >> $GITHUB_OUTPUT
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+
+  load-test:
+    needs: setup
+    if: needs.setup.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-suite: [
+          auth-flow-test,
+          trading-api-test,
+          query-api-test,
+          compliance-api-test,
+          feature-flags-test
+        ]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6=${{ env.K6_VERSION }}
+
+      - name: Verify k6 installation
+        run: k6 version
+
+      - name: Wait for environment to be ready
+        run: |
+          echo "Waiting for ${{ needs.setup.outputs.environment }} environment..."
+          sleep 30
+
+      - name: Run load test
+        run: |
+          export API_BASE_URL="${{ secrets.STAGING_API_URL }}"
+          export TEST_USER_EMAIL="${{ secrets.TEST_USER_EMAIL }}"
+          export TEST_USER_PASSWORD="${{ secrets.TEST_USER_PASSWORD }}"
+          
+          case "${{ needs.setup.outputs.test-type }}" in
+            "smoke")
+              echo "Running smoke test for ${{ matrix.test-suite }}"
+              k6 run --vus 10 --duration 30s tests/load/${{ matrix.test-suite }}.js \
+                --out json=results-${{ matrix.test-suite }}-smoke.json
+              ;;
+            "stress")
+              echo "Running stress test for ${{ matrix.test-suite }}"
+              k6 run --vus 2000 --duration 10m tests/load/${{ matrix.test-suite }}.js \
+                --out json=results-${{ matrix.test-suite }}-stress.json
+              ;;
+            "soak")
+              echo "Running soak test for ${{ matrix.test-suite }}"
+              k6 run --vus 100 --duration 2h tests/load/${{ matrix.test-suite }}.js \
+                --out json=results-${{ matrix.test-suite }}-soak.json
+              ;;
+            *)
+              echo "Running full load test for ${{ matrix.test-suite }}"
+              k6 run tests/load/${{ matrix.test-suite }}.js \
+                --out json=results-${{ matrix.test-suite }}-full.json
+              ;;
+          esac
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-results-${{ matrix.test-suite }}
+          path: |
+            results-*.json
+            *.html
+          retention-days: 30
+
+      - name: Generate performance report
+        run: |
+          # Generate HTML report using k6 reporter
+          k6 run --out json=report.json tests/load/${{ matrix.test-suite }}.js || true
+          
+          # Create summary
+          echo "## Load Test Results - ${{ matrix.test-suite }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Test Type: ${{ needs.setup.outputs.test-type }}" >> $GITHUB_STEP_SUMMARY
+          echo "Environment: ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  performance-analysis:
+    needs: [setup, load-test]
+    if: needs.setup.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          npm install -g @k6/html-reporter
+
+      - name: Generate performance analysis
+        run: |
+          echo "# Performance Analysis Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Type**: ${{ needs.setup.outputs.test-type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Analyze results from all test suites
+          for artifact in artifacts/*/; do
+            if [ -d "$artifact" ]; then
+              suite_name=$(basename "$artifact")
+              echo "### $suite_name" >> $GITHUB_STEP_SUMMARY
+              
+              # Find JSON result files
+              for result_file in "$artifact"*.json; do
+                if [ -f "$result_file" ]; then
+                  echo "#### $(basename "$result_file")" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Extract key metrics (simplified)
+                  if command -v jq &> /dev/null; then
+                    avg_response_time=$(jq -r '.metrics.http_req_duration.avg // "N/A"' "$result_file")
+                    p95_response_time=$(jq -r '.metrics.http_req_duration["95"] // "N/A"' "$result_file")
+                    p99_response_time=$(jq -r '.metrics.http_req_duration["99"] // "N/A"' "$result_file")
+                    error_rate=$(jq -r '.metrics.http_req_failed.rate // "N/A"' "$result_file")
+                    
+                    echo "- **Average Response Time**: ${avg_response_time}ms" >> $GITHUB_STEP_SUMMARY
+                    echo "- **95th Percentile**: ${p95_response_time}ms" >> $GITHUB_STEP_SUMMARY
+                    echo "- **99th Percentile**: ${p99_response_time}ms" >> $GITHUB_STEP_SUMMARY
+                    echo "- **Error Rate**: ${error_rate}" >> $GITHUB_STEP_SUMMARY
+                  fi
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                fi
+              done
+            fi
+          done
+
+      - name: Check performance thresholds
+        run: |
+          echo "## Performance Threshold Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Define thresholds
+          P95_THRESHOLD=200
+          P99_THRESHOLD=500
+          ERROR_THRESHOLD=0.01
+          
+          for artifact in artifacts/*/; do
+            if [ -d "$artifact" ]; then
+              suite_name=$(basename "$artifact")
+              echo "### $suite_name" >> $GITHUB_STEP_SUMMARY
+              
+              for result_file in "$artifact"*.json; do
+                if [ -f "$result_file" ] && command -v jq &> /dev/null; then
+                  p95=$(jq -r '.metrics.http_req_duration["95"] // null' "$result_file")
+                  p99=$(jq -r '.metrics.http_req_duration["99"] // null' "$result_file")
+                  error_rate=$(jq -r '.metrics.http_req_failed.rate // null' "$result_file")
+                  
+                  if [ "$p95" != "null" ] && [ "$p99" != "null" ] && [ "$error_rate" != "null" ]; then
+                    # Check thresholds
+                    if (( $(echo "$p95 > $P95_THRESHOLD" | bc -l) )); then
+                      echo "❌ P95 response time ($p95 ms) exceeds threshold ($P95_THRESHOLD ms)" >> $GITHUB_STEP_SUMMARY
+                    else
+                      echo "✅ P95 response time ($p95 ms) within threshold" >> $GITHUB_STEP_SUMMARY
+                    fi
+                    
+                    if (( $(echo "$p99 > $P99_THRESHOLD" | bc -l) )); then
+                      echo "❌ P99 response time ($p99 ms) exceeds threshold ($P99_THRESHOLD ms)" >> $GITHUB_STEP_SUMMARY
+                    else
+                      echo "✅ P99 response time ($p99 ms) within threshold" >> $GITHUB_STEP_SUMMARY
+                    fi
+                    
+                    if (( $(echo "$error_rate > $ERROR_THRESHOLD" | bc -l) )); then
+                      echo "❌ Error rate ($error_rate) exceeds threshold ($ERROR_THRESHOLD)" >> $GITHUB_STEP_SUMMARY
+                    else
+                      echo "✅ Error rate ($error_rate) within threshold" >> $GITHUB_STEP_SUMMARY
+                    fi
+                  fi
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                fi
+              done
+            fi
+          done
+
+      - name: Notify on performance degradation
+        if: failure()
+        run: |
+          echo "⚠️ Performance degradation detected!" >> $GITHUB_STEP_SUMMARY
+          echo "Please review the detailed results and consider investigating the performance issues." >> $GITHUB_STEP_SUMMARY
+
+  cleanup:
+    needs: [setup, load-test, performance-analysis]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Cleanup old artifacts
+        run: |
+          echo "Cleaning up old test artifacts..."
+          # This would clean up any temporary resources created during testing
+          echo "Cleanup completed."
