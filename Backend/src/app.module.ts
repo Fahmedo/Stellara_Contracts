@@ -61,6 +61,7 @@ import { TransactionQueueModule } from './transaction-queue/transaction-queue.mo
 import { SupplyChainFinanceModule } from './supply-chain-finance/supply-chain-finance.module';
 import { LiquidityAggregationModule } from './liquidity-aggregation/liquidity-aggregation.module';
 import { LiquidityProvisioningModule } from './liquidity-provisioning/liquidity-provisioning.module';
+import { CustomerIdentityGraphModule } from './customer-identity-graph/customer-identity-graph.module';
 import { CrossChainSwapModule } from './cross-chain-swap/cross-chain-swap.module';
 import { PredictiveSettlementModule } from './predictive-settlement/predictive-settlement.module';
 import { HFTModule } from './hft/hft.module';
@@ -150,6 +151,7 @@ import { AIAuditorModule } from './ai-auditor/ai-auditor.module';
     SupplyChainFinanceModule,
     LiquidityAggregationModule,
     LiquidityProvisioningModule,
+    CustomerIdentityGraphModule,
     CrossChainSwapModule,
     PredictiveSettlementModule,
     CollateralModule,
