@@ -1519,6 +1519,35 @@ model PaymentEvent {
   @@map("payment_events")
 }
 
+model LiquidityProvisioningPosition {
+  id           String   @id @default(cuid())
+  symbol       String   @unique
+  baseBalance  Decimal  @default(0) @db.Decimal(24, 8)
+  quoteBalance Decimal  @default(0) @db.Decimal(24, 8)
+  averageCost  Decimal  @default(0) @db.Decimal(24, 8)
+  realizedPnl  Decimal  @default(0) @db.Decimal(24, 8)
+  unrealizedPnl Decimal @default(0) @db.Decimal(24, 8)
+  lastUpdated  DateTime @default(now()) @map("last_updated")
+  pnlHistory   LiquidityProvisioningPnl[]
+
+  @@map("liquidity_provisioning_positions")
+}
+
+model LiquidityProvisioningPnl {
+  id         String   @id @default(cuid())
+  positionId String   @map("position_id")
+  position   LiquidityProvisioningPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  symbol     String
+  side       String
+  amount     Decimal  @db.Decimal(24, 8)
+  price      Decimal  @db.Decimal(24, 8)
+  realizedPnl Decimal @db.Decimal(24, 8)
+  timestamp  DateTime @default(now())
+
+  @@index([symbol])
+  @@map("liquidity_provisioning_pnls")
+}
+
 model DunningAttempt {
   id             String       @id @default(uuid())
   subscriptionId String       @map("subscription_id")
