@@ -2,6 +2,7 @@ import { AbiRegistryModule } from './abi-registry/abi-registry.module';
 import { ExperimentsModule } from './experiments/experiments.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { KycModule } from './kyc/kyc.module';
+import { MarketSentimentModule } from './market-sentiment/market-sentiment.module';
 
 import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
@@ -59,12 +60,16 @@ import { SecretsManagementModule } from './secrets-management/secrets-management
 import { TransactionQueueModule } from './transaction-queue/transaction-queue.module';
 import { SupplyChainFinanceModule } from './supply-chain-finance/supply-chain-finance.module';
 import { LiquidityAggregationModule } from './liquidity-aggregation/liquidity-aggregation.module';
+import { LiquidityProvisioningModule } from './liquidity-provisioning/liquidity-provisioning.module';
+import { CustomerIdentityGraphModule } from './customer-identity-graph/customer-identity-graph.module';
 import { CrossChainSwapModule } from './cross-chain-swap/cross-chain-swap.module';
 import { CrossChainRouterModule } from './cross-chain-router/cross-chain-router.module';
 import { PredictiveSettlementModule } from './predictive-settlement/predictive-settlement.module';
 import { HFTModule } from './hft/hft.module';
 import { QuantumCryptoModule } from './crypto/quantum/quantum-crypto.module';
 import { AIAuditorModule } from './ai-auditor/ai-auditor.module';
+import { VoiceTradingModule } from './voice-trading/voice-trading.module';
+import { SyntheticAssetsModule } from './synthetic-assets/synthetic-assets.module';
 
 
 @Module({
@@ -120,6 +125,7 @@ import { AIAuditorModule } from './ai-auditor/ai-auditor.module';
     AbiRegistryModule,
     SupportModule,
     MultisigModule,
+    MarketSentimentModule,
 
     MonitoringModule,
 
@@ -147,6 +153,8 @@ import { AIAuditorModule } from './ai-auditor/ai-auditor.module';
     SecretsManagementModule,
     SupplyChainFinanceModule,
     LiquidityAggregationModule,
+    LiquidityProvisioningModule,
+    CustomerIdentityGraphModule,
     CrossChainSwapModule,
     PredictiveSettlementModule,
     CollateralModule,
@@ -155,6 +163,8 @@ import { AIAuditorModule } from './ai-auditor/ai-auditor.module';
     QuantumCryptoModule,
     AIAuditorModule,
     CrossChainRouterModule,
+    VoiceTradingModule,
+    SyntheticAssetsModule,
 
   ],
   controllers: [AppController, UserController, DocsController],

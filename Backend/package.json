@@ -108,8 +108,11 @@
     "twilio": "^5.13.1",
     "typeorm": "^0.3.28",
     "ua-parser-js": "^2.0.9",
+    "neo4j-driver": "^5.10.0",
     "uuid": "^10.0.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "@nestjs/axios": "^11.0.0",
+    "@xenova/transformers": "^2.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

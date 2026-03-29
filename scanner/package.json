@@ -1,0 +1,13 @@
+{
+  "name": "stellara-contract-security-scanner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static security scanner for Soroban smart contracts.",
+  "scripts": {
+    "scan": "node index.js",
+    "test": "node tests/scanner.test.js"
+  },
+  "dependencies": {
+    "@webassemblyjs/wasm-parser": "^1.11.1"
+  }
+}

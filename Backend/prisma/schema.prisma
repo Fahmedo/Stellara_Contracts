@@ -1145,6 +1145,46 @@ model AuditRetentionPolicy {
   @@map("audit_retention_policies")
 }
 
+model SentimentRecord {
+  id          String          @id @default(cuid())
+  source      String
+  asset       String
+  text        String?
+  sentiment   Decimal         @db.Decimal(5, 4)
+  label       SentimentLabel
+  collectedAt DateTime        @default(now()) @map("collected_at")
+  metadata    Json?
+
+  @@index([asset])
+  @@index([collectedAt])
+  @@map("sentiment_records")
+}
+
+model SentimentSignal {
+  id          String          @id @default(cuid())
+  asset       String
+  signal      SignalType
+  score       Decimal         @db.Decimal(5, 4)
+  reason      String?
+  generatedAt DateTime        @default(now()) @map("generated_at")
+
+  @@index([asset])
+  @@index([generatedAt])
+  @@map("sentiment_signals")
+}
+
+enum SentimentLabel {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+enum SignalType {
+  BUY
+  SELL
+  HOLD
+}
+
 // ─── Payment System Models ───────────────────────────────────────────────────
 
 enum SubscriptionStatus {
@@ -1477,6 +1517,35 @@ model PaymentEvent {
   @@index([eventType])
   @@index([createdAt])
   @@map("payment_events")
+}
+
+model LiquidityProvisioningPosition {
+  id           String   @id @default(cuid())
+  symbol       String   @unique
+  baseBalance  Decimal  @default(0) @db.Decimal(24, 8)
+  quoteBalance Decimal  @default(0) @db.Decimal(24, 8)
+  averageCost  Decimal  @default(0) @db.Decimal(24, 8)
+  realizedPnl  Decimal  @default(0) @db.Decimal(24, 8)
+  unrealizedPnl Decimal @default(0) @db.Decimal(24, 8)
+  lastUpdated  DateTime @default(now()) @map("last_updated")
+  pnlHistory   LiquidityProvisioningPnl[]
+
+  @@map("liquidity_provisioning_positions")
+}
+
+model LiquidityProvisioningPnl {
+  id         String   @id @default(cuid())
+  positionId String   @map("position_id")
+  position   LiquidityProvisioningPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  symbol     String
+  side       String
+  amount     Decimal  @db.Decimal(24, 8)
+  price      Decimal  @db.Decimal(24, 8)
+  realizedPnl Decimal @db.Decimal(24, 8)
+  timestamp  DateTime @default(now())
+
+  @@index([symbol])
+  @@map("liquidity_provisioning_pnls")
 }
 
 model DunningAttempt {
@@ -2167,5 +2236,98 @@ model RouterStatus {
 
   @@map("router_status")
 }
+// ─── Synthetic Asset Minting Platform ─────────────────────────────────────────
+
+model SyntheticAsset {
+  id             String    @id @default(cuid())
+  symbol         String    @unique                           // e.g. sGOLD, sSPX, sEUR
+  name           String                                      // e.g. "Synthetic Gold"
+  description    String?
+  oracleSymbol   String    @map("oracle_symbol")            // e.g. XAU, SPX, EURUSD
+  currentPrice   Decimal   @default(0) @db.Decimal(18, 8)  @map("current_price")
+  twapPrice      Decimal   @default(0) @db.Decimal(18, 8)  @map("twap_price")
+  pegDeviation   Decimal   @default(0) @db.Decimal(8, 6)   @map("peg_deviation")
+  stabilityFee   Decimal   @default(0.02) @db.Decimal(5, 4) @map("stability_fee") // annual rate
+  minCratio      Decimal   @default(1.5) @db.Decimal(5, 4) @map("min_cratio")     // 150%
+  liqCratio      Decimal   @default(1.2) @db.Decimal(5, 4) @map("liq_cratio")     // 120%
+  liqPenalty     Decimal   @default(0.13) @db.Decimal(5, 4) @map("liq_penalty")   // 13%
+  totalMinted    Decimal   @default(0) @db.Decimal(18, 8)  @map("total_minted")
+  totalCollateral Decimal  @default(0) @db.Decimal(18, 8)  @map("total_collateral")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  cdps           SyntheticCDP[]
+  priceFeeds     OraclePriceFeed[]
+
+  @@map("synthetic_assets")
+}
+
+model SyntheticCDP {
+  id                 String         @id @default(cuid())
+  userId             String         @map("user_id")
+  user               User           @relation(fields: [userId], references: [id])
+  syntheticAssetId   String         @map("synthetic_asset_id")
+  syntheticAsset     SyntheticAsset @relation(fields: [syntheticAssetId], references: [id])
+  collateralSymbol   String         @map("collateral_symbol")   // XLM, BTC, ETH, USDC
+  collateralAmount   Decimal        @db.Decimal(18, 8) @map("collateral_amount")
+  collateralValueUsd Decimal        @default(0) @db.Decimal(18, 4) @map("collateral_value_usd")
+  mintedAmount       Decimal        @default(0) @db.Decimal(18, 8) @map("minted_amount")
+  debtValueUsd       Decimal        @default(0) @db.Decimal(18, 4) @map("debt_value_usd")
+  accruedFee         Decimal        @default(0) @db.Decimal(18, 8) @map("accrued_fee")
+  collateralRatio    Decimal        @default(0) @db.Decimal(8, 4) @map("collateral_ratio")
+  healthFactor       Decimal        @default(1.0) @db.Decimal(8, 4) @map("health_factor")
+  status             CDPStatus      @default(ACTIVE)
+  lastFeeAccrual     DateTime       @default(now()) @map("last_fee_accrual")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  liquidations       SyntheticLiquidation[]
+
+  @@unique([userId, syntheticAssetId, collateralSymbol])
+  @@index([userId])
+  @@index([status])
+  @@map("synthetic_cdps")
+}
+
+model OraclePriceFeed {
+  id               String         @id @default(cuid())
+  syntheticAssetId String         @map("synthetic_asset_id")
+  syntheticAsset   SyntheticAsset @relation(fields: [syntheticAssetId], references: [id])
+  source           String                                        // chainlink, band, pyth, coingecko
+  price            Decimal        @db.Decimal(18, 8)
+  confidence       Decimal?       @db.Decimal(8, 4)             // 0-1 confidence score
+  isValid          Boolean        @default(true) @map("is_valid")
+  timestamp        DateTime       @default(now())
+
+  @@index([syntheticAssetId, timestamp])
+  @@index([source, timestamp])
+  @@map("oracle_price_feeds")
+}
+
+model SyntheticLiquidation {
+  id               String       @id @default(cuid())
+  cdpId            String       @map("cdp_id")
+  cdp              SyntheticCDP @relation(fields: [cdpId], references: [id])
+  liquidatorId     String?      @map("liquidator_id")
+  collateralSeized Decimal      @db.Decimal(18, 8) @map("collateral_seized")
+  collateralSymbol String       @map("collateral_symbol")
+  debtRepaid       Decimal      @db.Decimal(18, 8) @map("debt_repaid")
+  liquidationFee   Decimal      @db.Decimal(18, 8) @map("liquidation_fee")
+  penaltyAmount    Decimal      @db.Decimal(18, 8) @map("penalty_amount")
+  isPartial        Boolean      @default(true) @map("is_partial")
+  healthBefore     Decimal      @db.Decimal(8, 4) @map("health_before")
+  healthAfter      Decimal      @db.Decimal(8, 4) @map("health_after")
+  timestamp        DateTime     @default(now())
+
+  @@index([cdpId])
+  @@map("synthetic_liquidations")
+}
+
+enum CDPStatus {
+  ACTIVE
+  AT_RISK
+  LIQUIDATED
+  CLOSED
 }
 
