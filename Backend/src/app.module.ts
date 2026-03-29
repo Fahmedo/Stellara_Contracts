@@ -70,6 +70,7 @@ import { QuantumCryptoModule } from './crypto/quantum/quantum-crypto.module';
 import { AIAuditorModule } from './ai-auditor/ai-auditor.module';
 import { VoiceTradingModule } from './voice-trading/voice-trading.module';
 import { SyntheticAssetsModule } from './synthetic-assets/synthetic-assets.module';
+import { MLModelServingModule } from './ml-model-serving/ml-model-serving.module';
 
 
 @Module({
@@ -165,6 +166,7 @@ import { SyntheticAssetsModule } from './synthetic-assets/synthetic-assets.modul
     CrossChainRouterModule,
     VoiceTradingModule,
     SyntheticAssetsModule,
+    MLModelServingModule,
 
   ],
   controllers: [AppController, UserController, DocsController],

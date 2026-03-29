@@ -111,8 +111,11 @@
     "neo4j-driver": "^5.10.0",
     "uuid": "^10.0.0",
     "web-push": "^3.6.7",
-    "@nestjs/axios": "^11.0.0",
-    "@xenova/transformers": "^2.0.0"
+    "@nestjs/axios": "^4.0.1",
+    "@kubernetes/client-node": "^0.20.0",
+    "@tensorflow/tfjs-node": "^4.15.0",
+    "onnxruntime-node": "^1.16.0",
+    "python-shell": "^5.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
