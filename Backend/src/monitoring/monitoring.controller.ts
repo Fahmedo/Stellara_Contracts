@@ -1,10 +1,11 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { HealthCheck, HealthCheckService, HttpHealthIndicator, MemoryHealthIndicator } from '@nestjs/terminus';
 import { PrismaHealthIndicator } from './indicators/prisma-health.indicator';
 import { RedisHealthIndicator } from './indicators/redis-health.indicator';
 import { StellarHealthIndicator } from './indicators/stellar-health.indicator';
 import { RabbitMqHealthIndicator } from './indicators/rabbitmq-health.indicator';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { PrismaPoolService } from './prisma-pool.service';
 
 @ApiTags('Monitoring')
 @Controller('monitoring')
@@ -17,12 +18,13 @@ export class MonitoringController {
     private rabbitMqHealth: RabbitMqHealthIndicator,
     private memory: MemoryHealthIndicator,
     private http: HttpHealthIndicator,
-  ) {}
+    private prismaPool: PrismaPoolService,
+  ) { }
 
   @Get('health')
   @HealthCheck()
   @ApiOperation({ summary: 'Check if the service is alive and core dependencies are up' })
-  check() {
+  check () {
     return this.health.check([
       () => this.prismaHealth.isHealthy('database'),
       () => this.redisHealth.isHealthy('redis'),
@@ -32,7 +34,7 @@ export class MonitoringController {
   @Get('health/detailed')
   @HealthCheck()
   @ApiOperation({ summary: 'Comprehensive health check for all internal and external dependencies' })
-  checkDetailed() {
+  checkDetailed () {
     return this.health.check([
       () => this.prismaHealth.isHealthy('database'),
       () => this.redisHealth.isHealthy('redis'),
@@ -44,5 +46,11 @@ export class MonitoringController {
       () => this.http.pingCheck('stripe_api', 'https://api.stripe.com'),
       () => this.http.pingCheck('sendgrid_api', 'https://api.sendgrid.com/v3/stats', { timeout: 3000 }),
     ]);
+  }
+
+  @Get('database/pool')
+  @ApiOperation({ summary: 'Inspect Prisma connection pool utilization and tuning settings' })
+  getDatabasePool (@Query('refresh') refresh?: string) {
+    return this.prismaPool.getSnapshot(refresh === 'true');
   }
 }

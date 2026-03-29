@@ -19,6 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "perf:test": "k6 run ./k6/load-test.js --out json=./k6/results.json",
+    "perf:test:db-pool": "TARGET_PATH=monitoring/health VUS=550 DURATION=2m MAX_P95_MS=750 MIN_RPS=150 k6 run ./k6/load-test.js --out json=./k6/prisma-pool-results.json",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

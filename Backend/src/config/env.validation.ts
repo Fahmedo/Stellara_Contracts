@@ -155,6 +155,55 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   INDEX_ANALYSIS_MIGRATIONS_DIR?: string;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_EXPECTED_CONCURRENCY?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_MAX?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_MIN?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_CONNECTION_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_IDLE_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_MAX_LIFETIME_SECONDS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_MAX_USES?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_QUERY_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_STATEMENT_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_HEALTHCHECK_INTERVAL_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  PRISMA_POOL_METRICS_INTERVAL_MS?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  PRISMA_POOL_ALLOW_EXIT_ON_IDLE?: boolean;
+
   // AWS S3 Backup Configuration
   @IsOptional()
   @IsString()
@@ -313,7 +362,7 @@ class EnvironmentVariables {
   WEBHOOK_REQUEST_TIMEOUT_MS?: number;
 }
 
-export function validateEnv(config: Record<string, unknown>) {
+export function validateEnv (config: Record<string, unknown>) {
   const validatedConfig = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });
