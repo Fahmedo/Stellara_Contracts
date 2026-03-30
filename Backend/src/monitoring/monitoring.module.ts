@@ -4,6 +4,7 @@ import { HttpModule } from '@nestjs/axios';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { MonitoringController } from './monitoring.controller';
 import { PrismaHealthIndicator } from './indicators/prisma-health.indicator';
+import { PrismaPoolService } from './prisma-pool.service';
 import { RedisHealthIndicator } from './indicators/redis-health.indicator';
 import { StellarHealthIndicator } from './indicators/stellar-health.indicator';
 import { RabbitMqHealthIndicator } from './indicators/rabbitmq-health.indicator';
@@ -28,10 +29,11 @@ import { PrismaModule } from '../prisma.module';
   ],
   controllers: [MonitoringController],
   providers: [
+    PrismaPoolService,
     PrismaHealthIndicator,
     RedisHealthIndicator,
     StellarHealthIndicator,
     RabbitMqHealthIndicator,
   ],
 })
-export class MonitoringModule {}
+export class MonitoringModule { }
