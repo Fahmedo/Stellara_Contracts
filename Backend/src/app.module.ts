@@ -75,6 +75,7 @@ import { LongevityModule } from './longevity/longevity.module';
 
 import { MLModelServingModule } from './ml-model-serving/ml-model-serving.module';
 import { SiemModule } from './siem/siem.module';
+import { InstitutionalCustodyModule } from './institutional-custody/institutional-custody.module';
 
 @Module({
   imports: [
@@ -173,6 +174,7 @@ import { SiemModule } from './siem/siem.module';
     LongevityModule,
     MLModelServingModule,
     SiemModule,
+    InstitutionalCustodyModule,
 
   ],
   controllers: [AppController, UserController, DocsController],
