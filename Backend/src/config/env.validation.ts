@@ -1,5 +1,12 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsNumber, IsString, validateSync } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  validateSync,
+} from 'class-validator';
 
 enum Environment {
   Development = 'development',
@@ -35,6 +42,10 @@ class EnvironmentVariables {
   @IsString()
   IPFS_PROTOCOL: string;
 
+  @IsOptional()
+  @IsString()
+  IPFS_API_KEY?: string;
+
   @IsString()
   JWT_SECRET: string;
 
@@ -56,11 +67,55 @@ class EnvironmentVariables {
   @IsString()
   ESCROW_CONTRACT_ID: string;
 
+  @IsOptional()
+  @IsString()
+  PROFIT_DISTRIBUTION_CONTRACT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  SUBSCRIPTION_POOL_CONTRACT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  GOVERNANCE_CONTRACT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  REPUTATION_CONTRACT_ID?: string;
+
   @IsNumber()
   INDEXER_POLL_INTERVAL_MS: number;
 
   @IsNumber()
   INDEXER_REORG_DEPTH_THRESHOLD: number;
+
+  @IsOptional()
+  @IsNumber()
+  INDEXER_MAX_EVENTS_PER_FETCH?: number;
+
+  @IsOptional()
+  @IsNumber()
+  INDEXER_RETRY_ATTEMPTS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  INDEXER_RETRY_DELAY_MS?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  EMAIL_NOTIFICATIONS_ENABLED?: boolean;
+
+  @IsOptional()
+  @IsString()
+  SENDGRID_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  SENDGRID_FROM_EMAIL?: string;
+
+  @IsOptional()
+  @IsNumber()
+  EMAIL_OUTBOX_ALERT_THRESHOLD?: number;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

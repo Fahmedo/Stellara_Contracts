@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { create } from 'ipfs-http-client';
+import { create, Options } from 'ipfs-http-client';
 import sharp from 'sharp';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,19 +17,32 @@ export class StorageService {
   private ipfs: ReturnType<typeof create>;
   private readonly maxRetries = 3;
   private readonly retryDelay = 1000; // 1 second
+  private readonly ipfsProtocol: string;
+  private readonly ipfsHost: string;
+  private readonly ipfsPort: number;
 
   constructor(private readonly configService: ConfigService) {
-    const ipfsHost = this.configService.get<string>('IPFS_HOST', 'ipfs.infura.io');
-    const ipfsPort = this.configService.get<number>('IPFS_PORT', 5001);
-    const ipfsProtocol = this.configService.get<string>('IPFS_PROTOCOL', 'https');
+    this.ipfsHost = this.configService.get<string>('IPFS_HOST', 'ipfs.infura.io');
+    this.ipfsPort = this.configService.get<number>('IPFS_PORT', 5001);
+    this.ipfsProtocol = this.configService.get<string>('IPFS_PROTOCOL', 'https');
+    const ipfsApiKey = this.configService.get<string>('IPFS_API_KEY');
+    const ipfsUrl = `${this.ipfsProtocol}://${this.ipfsHost}:${this.ipfsPort}`;
 
-    this.ipfs = create({
-      host: ipfsHost,
-      port: ipfsPort,
-      protocol: ipfsProtocol,
-    });
+    const options: Options = {
+      url: new URL(ipfsUrl),
+    };
 
-    this.logger.log(`IPFS client initialized with ${ipfsProtocol}://${ipfsHost}:${ipfsPort}`);
+    if (ipfsApiKey) {
+      options.headers = {
+        Authorization: `Bearer ${ipfsApiKey}`,
+      };
+    }
+
+    this.ipfs = create(options);
+
+    this.logger.log(
+      `IPFS client initialized with ${ipfsUrl}`,
+    );
   }
 
   /**
@@ -155,6 +168,23 @@ export class StorageService {
         error.stack,
       );
       return false;
+    }
+  }
+
+  async getConnectionStatus(): Promise<{ status: 'up' | 'down'; endpoint: string; error?: string }> {
+    try {
+      await this.retryOperation(async () => this.ipfs.id(), 'IPFS health check');
+      return {
+        status: 'up',
+        endpoint: `${this.ipfsProtocol}://${this.ipfsHost}:${this.ipfsPort}`,
+      };
+    } catch (error) {
+      this.logger.error(`IPFS connection check failed: ${error.message}`, error.stack);
+      return {
+        status: 'down',
+        endpoint: `${this.ipfsProtocol}://${this.ipfsHost}:${this.ipfsPort}`,
+        error: error.message,
+      };
     }
   }
 }

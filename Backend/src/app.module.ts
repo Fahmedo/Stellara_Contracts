@@ -7,8 +7,10 @@ import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { ReputationModule } from './reputation/reputation.module';
 import { DatabaseModule } from './database.module';
+import { HealthModule } from './health/health.module';
 import { IndexerModule } from './indexer/indexer.module';
 import { NotificationModule } from './notification/notification.module';
+import { StorageModule } from './storage/storage.module';
 import { InsuranceModule } from '../insurance/insurance.module';
 
 @Module({
@@ -32,8 +34,10 @@ import { InsuranceModule } from '../insurance/insurance.module';
     }),
     ReputationModule,
     DatabaseModule,
+    HealthModule,
     IndexerModule,
     NotificationModule,
+    StorageModule,
     InsuranceModule,
   ],
   controllers: [AppController, UserController],
