@@ -1,13 +1,13 @@
 import { Injectable, NestMiddleware, RequestTimeoutException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response, NextFunction } from 'express';
 
 @Injectable()
 export class TimeoutMiddleware implements NestMiddleware {
   private readonly timeoutMs: number;
 
-  constructor() {
-    // Default 30 second timeout for API requests
-    this.timeoutMs = parseInt(process.env.HTTP_REQUEST_TIMEOUT_MS || '30000', 10);
+  constructor(private readonly configService: ConfigService) {
+    this.timeoutMs = this.configService.get<number>('HTTP_REQUEST_TIMEOUT_MS', 30000);
   }
 
   use(req: Request, res: Response, next: NextFunction): void {

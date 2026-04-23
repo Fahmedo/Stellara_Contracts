@@ -28,8 +28,9 @@ export class EmailService implements OnModuleInit {
 
     if (this.sendGridApiKey) {
       sgMail.setApiKey(this.sendGridApiKey);
-      // Configure timeout for SendGrid API calls (15 seconds)
-      sgMail.setTimeout(15000);
+      // Configure timeout for SendGrid API calls
+      const sendGridTimeout = this.configService.get<number>('SENDGRID_TIMEOUT_MS', 15000);
+      sgMail.setTimeout(sendGridTimeout);
     }
   }
 

@@ -6,7 +6,11 @@ import { create as createClient } from 'ipfs-http-client';
 export class IpfsService implements OnModuleInit {
   private readonly logger = new Logger(IpfsService.name);
   private client: any;
-  private readonly timeout = 30000; // 30 seconds timeout
+  private readonly timeout: number;
+
+  constructor(private readonly configService: ConfigService) {
+    this.timeout = this.configService.get<number>('IPFS_TIMEOUT_MS', 30000);
+  }
 
   constructor(private readonly configService: ConfigService) {}
 
