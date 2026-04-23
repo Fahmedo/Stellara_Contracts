@@ -27,8 +27,14 @@ model User {
   createdProjects      Project[]            @relation("ProjectCreator")
   contributions        Contribution[]
   reputationHistory    ReputationHistory[]
+  reputationSignals    ReputationSignal[]
+  endorsementsGiven    Endorsement[]        @relation("EndorsementsGiven")
+  endorsementsReceived Endorsement[]        @relation("EndorsementsReceived")
+  disputes             Dispute[]
   notificationSettings NotificationSetting?
   notifications        Notification[]
+  esopGrants           EsopGrant[]
+  capTableEntries      CapTableEntry[]
 
   @@map("users")
 }
@@ -97,6 +103,48 @@ model ReputationHistory {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("reputation_history")
+}
+
+model ReputationSignal {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id])
+  source      String   // e.g., "trading", "governance", "repayment"
+  value       Float
+  weight      Float    @default(1.0)
+  timestamp   DateTime @default(now())
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("reputation_signals")
+}
+
+model Endorsement {
+  id              String   @id @default(cuid())
+  fromUserId      String   @map("from_user_id")
+  toUserId        String   @map("to_user_id")
+  fromUser        User     @relation("EndorsementsGiven", fields: [fromUserId], references: [id])
+  toUser          User     @relation("EndorsementsReceived", fields: [toUserId], references: [id])
+  weight          Float    @default(1.0)
+  comment         String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([fromUserId, toUserId])
+  @@map("endorsements")
+}
+
+model Dispute {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [id])
+  targetId        String   @map("target_id") // ID of the signal or endorsement being disputed
+  reason          String
+  status          String   @default("PENDING") // PENDING, RESOLVED, REJECTED
+  resolution      String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("disputes")
 }
 
 model Category {
@@ -278,3 +326,141 @@ model ReinsuranceContract {
 
   @@map("reinsurance_contracts")
 }
+
+// ----------------------------------------------------------------------
+// ESOP Management Module Models (Issue #538)
+// ----------------------------------------------------------------------
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  valuation409A   Decimal? @map("valuation_409a")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  grants          EsopGrant[]
+  capTableEntries CapTableEntry[]
+  valuations      ValuationHistory[]
+
+  @@map("organizations")
+}
+
+model ValuationHistory {
+  id            String       @id @default(cuid())
+  orgId         String       @map("org_id")
+  organization  Organization @relation(fields: [orgId], references: [id])
+  valuation409A Decimal      @map("valuation_409a")
+  effectiveDate DateTime     @map("effective_date")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  @@map("valuation_history")
+}
+
+enum EsopGrantType {
+  ISO
+  NSO
+}
+
+enum VestingFrequency {
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum GrantStatus {
+  ACTIVE
+  CANCELLED
+  FULLY_EXERCISED
+}
+
+enum ExerciseStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model EsopGrant {
+  id                  String          @id @default(cuid())
+  orgId               String          @map("org_id")
+  organization        Organization    @relation(fields: [orgId], references: [id])
+  employeeId          String          @map("employee_id")
+  employee            User            @relation(fields: [employeeId], references: [id])
+  type                EsopGrantType
+  totalShares         Int             @map("total_shares")
+  strikePrice         Decimal         @map("strike_price")
+  vestingPeriodMonths Int             @default(48) @map("vesting_period_months")
+  cliffPeriodMonths   Int             @default(12) @map("cliff_period_months")
+  vestingFrequency    VestingFrequency @default(MONTHLY) @map("vesting_frequency")
+  startDate           DateTime        @map("start_date")
+  exerciseWindowStart DateTime?       @map("exercise_window_start")
+  exerciseWindowEnd   DateTime?       @map("exercise_window_end")
+  status              GrantStatus     @default(ACTIVE)
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  exercises           EsopExercise[]
+
+  @@map("esop_grants")
+}
+
+model EsopExercise {
+  id              String         @id @default(cuid())
+  grantId         String         @map("grant_id")
+  grant           EsopGrant      @relation(fields: [grantId], references: [id])
+  shares          Int
+  exercisePrice   Decimal        @map("exercise_price")
+  taxWithheld     Decimal        @map("tax_withheld")
+  status          ExerciseStatus @default(PENDING)
+  executedAt      DateTime?      @map("executed_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@map("esop_exercises")
+}
+
+model CapTableEntry {
+  id              String       @id @default(cuid())
+  orgId           String       @map("org_id")
+  organization    Organization @relation(fields: [orgId], references: [id])
+  userId          String       @map("user_id")
+  user            User         @relation(fields: [userId], references: [id])
+  sharesOwned     Int          @map("shares_owned")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@unique([orgId, userId])
+  @@map("cap_table_entries")
+}
+
+// ----------------------------------------------------------------------
+// Security / Flash Loan Detection Module Models (Issue #537)
+// ----------------------------------------------------------------------
+
+enum AttackType {
+  ORACLE_MANIPULATION
+  LIQUIDATION_CASCADE
+  GOVERNANCE_ATTACK
+  UNKNOWN
+}
+
+enum MitigationStatus {
+  DETECTED
+  PAUSED
+  RESOLVED
+}
+
+model FlashLoanDetection {
+  id              String           @id @default(cuid())
+  transactionHash String           @unique @map("transaction_hash")
+  network         String
+  loanAmount      Decimal          @map("loan_amount")
+  tokenAddress    String           @map("token_address")
+  attackType      AttackType       @map("attack_type")
+  status          MitigationStatus @default(DETECTED)
+  evidence        Json?            // Forensics data / Forta payload
+  detectedAt      DateTime         @default(now()) @map("detected_at")
+  resolvedAt      DateTime?        @map("resolved_at")
+
+  @@map("flash_loan_detections")
+}
+
