@@ -48,6 +48,12 @@ model User {
   // Insurance Relations
   insurancePolicies    InsurancePolicy[]
 
+  // Dispute Relations
+  reputationDisputes   ReputationDispute[]
+  moderatedDisputes    ReputationDispute[] @relation("DisputeModerator")
+  disputeComments      DisputeComment[]
+  resolvedDisputes     DisputeResolution[] @relation("ResolutionModerator")
+
   @@map("users")
 }
 
@@ -122,16 +128,19 @@ model ReputationHistory {
 }
 
 model ReputationActivity {
-  id           String       @id @default(cuid())
-  subjectId    String       @map("subject_id")
-  subject      User         @relation("ReputationSubject", fields: [subjectId], references: [id])
-  actorId      String?      @map("actor_id")
-  actor        User?        @relation("ReputationActor", fields: [actorId], references: [id])
-  activityType ActivityType @map("activity_type")
-  value        Decimal      @db.Decimal(18, 4)
-  referenceId  String?      @map("reference_id")
-  occurredAt   DateTime     @map("occurred_at")
-  createdAt    DateTime     @default(now()) @map("created_at")
+  id           String             @id @default(cuid())
+  subjectId    String             @map("subject_id")
+  subject      User               @relation("ReputationSubject", fields: [subjectId], references: [id])
+  actorId      String?            @map("actor_id")
+  actor        User?              @relation("ReputationActor", fields: [actorId], references: [id])
+  activityType ActivityType       @map("activity_type")
+  value        Decimal            @db.Decimal(18, 4)
+  referenceId  String?            @map("reference_id")
+  occurredAt   DateTime           @map("occurred_at")
+  createdAt    DateTime           @default(now())
+
+  // Dispute Relations
+  reputationDisputes ReputationDispute[]
 
   @@index([subjectId])
   @@index([subjectId, activityType])
@@ -1122,4 +1131,133 @@ enum PrizeStatus {
   PAID
   FAILED
   CANCELLED
+}
+
+// Reputation Dispute Models
+
+model ReputationDispute {
+  id                String               @id @default(cuid())
+  userId            String               @map("user_id")
+  user              User                 @relation(fields: [userId], references: [id])
+  disputedActivityId String?             @map("disputed_activity_id")
+  disputedActivity  ReputationActivity?  @relation(fields: [disputedActivityId], references: [id])
+  disputeType       DisputeType          @map("dispute_type")
+  reason            String
+  description       String
+  evidence          Json?                @map("evidence")
+  previousScore     Int                  @map("previous_score")
+  requestedScore    Int?                 @map("requested_score")
+  status            DisputeStatus        @default(PENDING)
+  priority          DisputePriority      @default(MEDIUM)
+  moderatorId       String?              @map("moderator_id")
+  moderator         User?                @relation("DisputeModerator", fields: [moderatorId], references: [id])
+  moderatorNotes    String?              @map("moderator_notes")
+  resolution        DisputeResolution?   @relation(fields: [resolutionId], references: [id])
+  resolutionId      String?              @map("resolution_id")
+  automatedResolution Boolean            @default(false) @map("automated_resolution")
+  submittedAt       DateTime             @default(now()) @map("submitted_at")
+  reviewedAt        DateTime?            @map("reviewed_at")
+  resolvedAt        DateTime?            @map("resolved_at")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@index([status, priority])
+  @@index([moderatorId])
+  @@index([submittedAt])
+  @@map("reputation_disputes")
+}
+
+model DisputeResolution {
+  id                  String               @id @default(cuid())
+  disputeId           String               @unique @map("dispute_id")
+  dispute             ReputationDispute    @relation(fields: [disputeId], references: [id])
+  finalScore          Int?                 @map("final_score")
+  scoreAdjustment     Int                  @map("score_adjustment")
+  resolutionType      ResolutionType       @map("resolution_type")
+  explanation         String
+  evidence            Json?                @map("evidence")
+  moderatorId         String?              @map("moderator_id")
+  moderator           User?                @relation("ResolutionModerator", fields: [moderatorId], references: [id])
+  approvedBy          String?              @map("approved_by")
+  approvalNotes       String?              @map("approval_notes")
+  isFinal             Boolean              @default(true) @map("is_final")
+  canAppeal           Boolean              @default(true) @map("can_appeal")
+  appealDeadline      DateTime?            @map("appeal_deadline")
+  resolvedAt          DateTime             @default(now()) @map("resolved_at")
+  createdAt           DateTime             @default(now()) @map("created_at")
+
+  @@map("dispute_resolutions")
+}
+
+model DisputeComment {
+  id         String            @id @default(cuid())
+  disputeId  String            @map("dispute_id")
+  dispute    ReputationDispute @relation(fields: [disputeId], references: [id])
+  authorId   String            @map("author_id")
+  author     User              @relation(fields: [authorId], references: [id])
+  content    String
+  isInternal Boolean           @default(false) @map("is_internal")
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  @@index([disputeId, createdAt])
+  @@index([authorId])
+  @@map("dispute_comments")
+}
+
+model DisputeMetrics {
+  id                    String   @id @default(cuid())
+  totalDisputes         Int      @default(0) @map("total_disputes")
+  pendingDisputes       Int      @default(0) @map("pending_disputes")
+  resolvedDisputes      Int      @default(0) @map("resolved_disputes")
+  automatedResolutions  Int      @default(0) @map("automated_resolutions")
+  averageResolutionTime Float    @default(0) @map("average_resolution_time")
+  successRate           Float    @default(0) @map("success_rate")
+  appealRate            Float    @default(0) @map("appeal_rate")
+  period                String   @map("period") // 'daily', 'weekly', 'monthly'
+  periodStart           DateTime @map("period_start")
+  periodEnd             DateTime @map("period_end")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@unique([period, periodStart])
+  @@map("dispute_metrics")
+}
+
+enum DisputeType {
+  SCORE_CALCULATION_ERROR
+  UNFAIR_ACTIVITY_RECORDING
+  MISSING_ACTIVITY
+  DUPLICATE_ACTIVITY
+  DECAY_DISAGREEMENT
+  TECHNICAL_GLITCH
+  OTHER
+}
+
+enum DisputeStatus {
+  PENDING
+  UNDER_REVIEW
+  AWAITING_EVIDENCE
+  RESOLVED
+  REJECTED
+  APPEALED
+  CLOSED
+}
+
+enum DisputePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ResolutionType {
+  SCORE_ADJUSTMENT
+  ACTIVITY_CORRECTION
+  DECAY_REVERSAL
+  FULL_REVERSAL
+  MANUAL_OVERRIDE
+  AUTOMATED_CORRECTION
+  REJECTED
 }
