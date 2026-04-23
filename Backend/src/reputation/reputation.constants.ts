@@ -18,6 +18,14 @@ export enum ActivityType {
   DISPUTE_LOST = 'DISPUTE_LOST',
   /** A high-value contribution flagged by admins or automated scoring. */
   HIGH_VALUE_CONTRIBUTION = 'HIGH_VALUE_CONTRIBUTION',
+  /** A project was successfully completed. */
+  PROJECT_COMPLETION = 'PROJECT_COMPLETION',
+  /** A milestone was achieved within a project. */
+  MILESTONE_ACHIEVEMENT = 'MILESTONE_ACHIEVEMENT',
+  /** A social interaction such as comment or review. */
+  SOCIAL_INTERACTION = 'SOCIAL_INTERACTION',
+  /** A comment marked as helpful by other users. */
+  HELPFUL_COMMENT = 'HELPFUL_COMMENT',
   /** A milestone completed within a project. */
   MILESTONE_COMPLETED = 'MILESTONE_COMPLETED',
   /** A milestone that was delayed beyond its deadline. */
@@ -73,3 +81,39 @@ export const MAX_SCORE = 100;
  * alongside a `lowConfidence` flag.
  */
 export const MIN_ACTIVITY_THRESHOLD = 5;
+
+/**
+ * Decay rates per activity type (half-life in days).
+ * Different activity types decay at different rates based on their
+ * relevance over time.
+ */
+export const DECAY_RATES_BY_ACTIVITY: Record<ActivityType, number> = {
+  SUCCESSFUL_TRANSACTION: 180,    // 6 months - transactions stay relevant
+  FAILED_TRANSACTION: 365,        // 1 year - failures have longer memory
+  PEER_RATING: 180,               // 6 months - recent ratings matter more
+  COMMUNITY_REVIEW: 120,          // 4 months - reviews decay faster
+  DISPUTE_WON: 270,               // 9 months - dispute wins stay relevant
+  DISPUTE_LOST: 365,              // 1 year - dispute losses have longer memory
+  HIGH_VALUE_CONTRIBUTION: 180,   // 6 months - contributions stay relevant
+  PROJECT_COMPLETION: 270,        // 9 months - project completions are significant
+  MILESTONE_ACHIEVEMENT: 240,     // 8 months - milestones are moderately lasting
+  SOCIAL_INTERACTION: 90,         // 3 months - social interactions decay quickly
+  HELPFUL_COMMENT: 120,           // 4 months - helpful comments have medium relevance
+} as const;
+
+/**
+ * Reputation score threshold for decay exemption.
+ * Users with scores above this threshold are exempt from decay
+ * to reward consistent high performers.
+ */
+export const DECAY_EXEMPTION_THRESHOLD = 850;
+
+/**
+ * Decay schedule configuration.
+ * Controls how often decay calculations run.
+ */
+export const DECAY_SCHEDULE = {
+  CRON_EXPRESSION: '0 2 * * *', // Daily at 2 AM
+  BATCH_SIZE: 100,              // Process 100 users at a time
+  ENABLE_DECREASE_RATE: true,   // Enable decreased reputation decay rate
+} as const;

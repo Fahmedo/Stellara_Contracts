@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 import { calculateTrustScore } from './calculators/trust-score.calculator';
 import { calculateReputationScore } from './calculators/score.calculator';
-import { ActivityType } from '@prisma/client';
+import { ActivityType, DECAY_EXEMPTION_THRESHOLD, DECAY_SCHEDULE } from './reputation.constants';
 
 @Injectable()
 export class ReputationService {
@@ -15,20 +15,47 @@ export class ReputationService {
    * Daily task to apply time-decay to all users.
    * Older activities become less valuable over time, so scores must be
    * periodically refreshed even without new activity.
+   * 
+   * High performers (score >= DECAY_EXEMPTION_THRESHOLD) are exempt from decay.
    */
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleDailyRecalculation() {
-    this.logger.log('Starting daily reputation recalculation...');
-    const users = await this.prisma.user.findMany({ select: { id: true } });
+    this.logger.log('Starting daily reputation recalculation with decay...');
+    const users = await this.prisma.user.findMany({ 
+      select: { id: true, reputationScore: true },
+    });
+    
+    let processedCount = 0;
+    let exemptedCount = 0;
     
     for (const user of users) {
       try {
+        // Check for decay exemption
+        if (user.reputationScore >= DECAY_EXEMPTION_THRESHOLD) {
+          this.logger.log(`User ${user.id} exempt from decay (score: ${user.reputationScore})`);
+          await this.prisma.reputationDecayHistory.create({
+            data: {
+              userId: user.id,
+              previousScore: user.reputationScore,
+              newScore: user.reputationScore,
+              scoreChange: 0,
+              decayFactor: 1.0,
+              activitiesCount: 0,
+              exempted: true,
+              reason: `High performer exemption (score >= ${DECAY_EXEMPTION_THRESHOLD})`,
+            },
+          });
+          exemptedCount++;
+          continue;
+        }
+
         await this.updateReputationScore(user.id);
+        processedCount++;
       } catch (e) {
         this.logger.error(`Failed to recalculate score for user ${user.id}: ${e.message}`);
       }
     }
-    this.logger.log(`Finished daily recalculation for ${users.length} users.`);
+    this.logger.log(`Finished daily recalculation: ${processedCount} processed, ${exemptedCount} exempted out of ${users.length} users.`);
   }
 
   /**
@@ -167,6 +194,17 @@ export class ReputationService {
     return this.prisma.reputationHistory.findMany({
       where: { userId },
       orderBy: { timestamp: 'desc' },
+    });
+  }
+
+  /**
+   * Retrieves the decay history for a user to show transparency.
+   */
+  async getDecayHistory(userId: string) {
+    return this.prisma.reputationDecayHistory.findMany({
+      where: { userId },
+      orderBy: { occurredAt: 'desc' },
+      take: 50, // Last 50 decay events
     });
   }
 }
