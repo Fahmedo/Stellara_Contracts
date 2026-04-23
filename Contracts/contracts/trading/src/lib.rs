@@ -221,12 +221,12 @@ pub struct PrivateTradeAuditRecord {
 }
 
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct PrivateTradeAuditView {
     pub trade: PrivateTradeRecord,
-    pub proof: Option<SolvencyProofRecord>,
-    pub trader_view_key: Option<ComplianceViewKey>,
-    pub selective_disclosure: Option<Bytes>,
+    pub proof: Vec<SolvencyProofRecord>,
+    pub trader_view_key: Vec<ComplianceViewKey>,
+    pub selective_disclosure: Vec<Bytes>,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -1673,11 +1673,21 @@ impl UpgradeableTradingContract {
         env.events()
             .publish((symbol_short!("prv_audt"),), (audit_id, trade_id, auditor));
 
+        let mut proof_vec = Vec::new(&env);
+        if let Some(p) = proof {
+            proof_vec.push_back(p);
+        }
+
+        let mut key_vec = Vec::new(&env);
+        if let Some(k) = trader_view_key {
+            key_vec.push_back(k);
+        }
+
         Ok(PrivateTradeAuditView {
             trade,
-            proof,
-            trader_view_key,
-            selective_disclosure: None,
+            proof: proof_vec,
+            trader_view_key: key_vec,
+            selective_disclosure: Vec::new(&env),
         })
     }
 }
