@@ -34,6 +34,7 @@ import { TimeoutMiddleware } from './common/middleware/timeout.middleware';
 import { SanitizationMiddleware } from './common/middleware/sanitization.middleware';
 import { AppLogger } from './common/logger/app.logger';
 
+
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -67,9 +68,7 @@ import { AppLogger } from './common/logger/app.logger';
     SupportModule,
     MultisigModule,
     AppCacheModule,
-    V1Module,
-    V2Module,
-    NonceModule,
+
   ],
   controllers: [AppController],
   providers: [AppService, AppLogger, ApiVersionMiddleware, TimeoutMiddleware],
