@@ -109,4 +109,9 @@ export class WebhooksController {
   publishEvent(@Body() dto: PublishWebhookEventDto) {
     return this.webhooksService.publishEvent(dto);
   }
+
+  @Post()
+  create(@Body() body: { url: string; event: string }) {
+    return this.webhooksService.register(body.url, body.event);
+  }
 }

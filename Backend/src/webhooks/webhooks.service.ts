@@ -7,6 +7,7 @@ import {
   PublishWebhookEventDto,
   UpdateWebhookSubscriptionDto,
 } from './dto/webhook.dto';
+import { EmailService } from 'src/email/email.service';
 
 type DeliveryStatus = 'PENDING' | 'RETRYING' | 'DELIVERED' | 'FAILED';
 
@@ -20,6 +21,7 @@ export class WebhooksService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
     private readonly circuitBreakerService: CircuitBreakerService,
   ) {
     this.circuitBreakerService.register('external-webhooks', {
@@ -498,5 +500,43 @@ export class WebhooksService {
   private resolveTimeoutMs() {
     const raw = Number(process.env.WEBHOOK_REQUEST_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
     return Number.isNaN(raw) ? DEFAULT_TIMEOUT_MS : raw;
+  }
+
+  async sendWithRetry(url: string, payload: any, retries = 3) {
+    try {
+      await fetch(url, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      await this.prisma.webhookLog.create({
+        data: { url, status: 'SUCCESS' },
+      });
+    } catch {
+      if (retries > 0) {
+        setTimeout(() => this.sendWithRetry(url, payload, retries - 1), 1000);
+      } else {
+        await this.prisma.webhookLog.create({
+          data: { url, status: 'FAILED' },
+        });
+      }
+    }
+  }
+
+  async register(url: string, event: string) {
+    return this.prisma.webhook.create({
+      data: { url, event },
+    });
+  }
+
+  async trigger(event: string, payload: any) {
+    const hooks = await this.prisma.webhook.findMany({
+      where: { event },
+    });
+
+    for (const hook of hooks) {
+      this.sendWithRetry(hook.url, payload);
+    }
   }
 }
