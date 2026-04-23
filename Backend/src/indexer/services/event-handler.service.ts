@@ -617,6 +617,141 @@ export class ProjectFailedHandler implements IEventHandler {
 }
 
 /**
+ * Handler for POLICY_CREATED events
+ */
+export class PolicyCreatedHandler implements IEventHandler {
+  readonly eventType = 'policy_new';
+  private readonly logger = new Logger(PolicyCreatedHandler.name);
+
+  constructor(private readonly prisma: PrismaService) { }
+
+  validate(event: ParsedContractEvent): boolean {
+    const data = event.data as unknown as PolicyCreatedEvent;
+    return !!(data.policyId && data.user && data.poolId);
+  }
+
+  async handle(event: ParsedContractEvent): Promise<void> {
+    const data = event.data as unknown as PolicyCreatedEvent;
+
+    this.logger.log(`Processing POLICY_CREATED: Policy ${data.policyId} for user ${data.user}`);
+
+    // Find user by wallet address
+    const user = await this.prisma.user.findUnique({
+      where: { walletAddress: data.user },
+    });
+
+    if (!user) {
+      this.logger.warn(`User ${data.user} not found for policy creation`);
+      return;
+    }
+
+    await this.prisma.insurancePolicy.upsert({
+      where: { id: data.policyId },
+      update: {
+        riskType: data.riskType as any,
+        premium: data.premium,
+        coverageAmount: data.coverageAmount,
+      },
+      create: {
+        id: data.policyId,
+        userId: user.id,
+        poolId: data.poolId,
+        riskType: data.riskType as any,
+        premium: data.premium,
+        coverageAmount: data.coverageAmount,
+      },
+    });
+
+    this.logger.log(`Synced policy ${data.policyId} to database`);
+  }
+}
+
+/**
+ * Handler for CLAIM_SUBMITTED events
+ */
+export class ClaimSubmittedHandler implements IEventHandler {
+  readonly eventType = 'claim_sub';
+  private readonly logger = new Logger(ClaimSubmittedHandler.name);
+
+  constructor(private readonly prisma: PrismaService) { }
+
+  validate(event: ParsedContractEvent): boolean {
+    const data = event.data as unknown as ClaimSubmittedEvent;
+    return !!(data.claimId && data.policyId);
+  }
+
+  async handle(event: ParsedContractEvent): Promise<void> {
+    const data = event.data as unknown as ClaimSubmittedEvent;
+
+    this.logger.log(`Processing CLAIM_SUBMITTED: Claim ${data.claimId} for policy ${data.policyId}`);
+
+    await this.prisma.claim.upsert({
+      where: { id: data.claimId },
+      update: {
+        claimAmount: data.claimAmount,
+        status: 'PENDING',
+      },
+      create: {
+        id: data.claimId,
+        policyId: data.policyId,
+        claimAmount: data.claimAmount,
+        status: 'PENDING',
+      },
+    });
+  }
+}
+
+/**
+ * Handler for CLAIM_PAID events
+ */
+export class ClaimPaidHandler implements IEventHandler {
+  readonly eventType = 'claim_paid';
+  private readonly logger = new Logger(ClaimPaidHandler.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) { }
+
+  validate(event: ParsedContractEvent): boolean {
+    const data = event.data as unknown as ClaimPaidEvent;
+    return !!(data.claimId && data.payoutAmount);
+  }
+
+  async handle(event: ParsedContractEvent): Promise<void> {
+    const data = event.data as unknown as ClaimPaidEvent;
+
+    this.logger.log(`Processing CLAIM_PAID: Claim ${data.claimId} with payout ${data.payoutAmount}`);
+
+    const claim = await this.prisma.claim.update({
+      where: { id: data.claimId },
+      data: {
+        status: 'PAID',
+        payoutAmount: data.payoutAmount,
+      },
+      include: {
+        // policy: true, // Need to check if relation exists in schema
+      },
+    });
+
+    // Notify user
+    const policy = await this.prisma.insurancePolicy.findUnique({
+      where: { id: claim.policyId },
+    });
+
+    if (policy) {
+      await this.notificationService.notify(
+        policy.userId,
+        'SYSTEM',
+        'Insurance Payout Successful',
+        `Your insurance claim of ${data.payoutAmount} has been paid!`,
+        { claimId: data.claimId, policyId: claim.policyId }
+      );
+    }
+  }
+}
+
+/**
  * Service that manages event handlers and routes events to appropriate handlers
  */
 

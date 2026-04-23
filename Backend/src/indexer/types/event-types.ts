@@ -97,3 +97,32 @@ export interface ProjectStatusEvent {
   projectId: number;
   status: 'completed' | 'failed';
 }
+
+/**
+ * Policy created event data
+ */
+export interface PolicyCreatedEvent {
+  policyId: string;
+  user: string;
+  poolId: string;
+  riskType: string;
+  premium: string;
+  coverageAmount: string;
+}
+
+/**
+ * Claim submitted event data
+ */
+export interface ClaimSubmittedEvent {
+  claimId: string;
+  policyId: string;
+  claimAmount: string;
+}
+
+/**
+ * Claim paid event data
+ */
+export interface ClaimPaidEvent {
+  claimId: string;
+  payoutAmount: string;
+}

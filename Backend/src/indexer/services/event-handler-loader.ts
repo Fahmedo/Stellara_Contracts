@@ -16,6 +16,9 @@ import { MilestoneRejectedHandler } from './event-handler.service';
 import { FundsReleasedHandler } from './event-handler.service';
 import { ProjectCompletedHandler } from './event-handler.service';
 import { ProjectFailedHandler } from './event-handler.service';
+import { PolicyCreatedHandler } from './event-handler.service';
+import { ClaimSubmittedHandler } from './event-handler.service';
+import { ClaimPaidHandler } from './event-handler.service';
 
 const HANDLER_CLASS_MAP: Record<string, any> = {
   ProjectCreatedHandler,
@@ -26,6 +29,9 @@ const HANDLER_CLASS_MAP: Record<string, any> = {
   FundsReleasedHandler,
   ProjectCompletedHandler,
   ProjectFailedHandler,
+  PolicyCreatedHandler,
+  ClaimSubmittedHandler,
+  ClaimPaidHandler,
 };
 
 export interface EventTypeConfig {
@@ -75,6 +81,13 @@ export class EventHandlerLoader {
         case 'ProjectCompletedHandler':
         case 'ProjectFailedHandler':
           handler = new HandlerClass(this.prisma, this.reputationService);
+          break;
+        case 'PolicyCreatedHandler':
+        case 'ClaimSubmittedHandler':
+          handler = new HandlerClass(this.prisma);
+          break;
+        case 'ClaimPaidHandler':
+          handler = new HandlerClass(this.prisma, this.notificationService);
           break;
         default:
           this.logger.warn(`Unknown handler constructor for ${evt.handler}`);

@@ -8,6 +8,9 @@ import { PoolService } from './pool.service';
 import { ClaimService } from './claim.service';
 import { ReinsuranceService } from './reinsurance.service';
 import { PricingService } from './pricing.service';
+import { InsuranceAnalyticsService } from './insurance-analytics.service';
+import { FraudDetectionService } from './fraud-detection.service';
+import { InsuranceContractService } from './insurance-contract.service';
 
 @Module({
   imports: [DatabaseModule],
@@ -18,6 +21,9 @@ import { PricingService } from './pricing.service';
     ClaimService,
     ReinsuranceService,
     PricingService,
+    InsuranceAnalyticsService,
+    FraudDetectionService,
+    InsuranceContractService,
   ],
   exports: [
     InsuranceService,
@@ -25,6 +31,9 @@ import { PricingService } from './pricing.service';
     ClaimService,
     ReinsuranceService,
     PricingService,
+    InsuranceAnalyticsService,
+    FraudDetectionService,
+    InsuranceContractService,
   ],
 })
 export class InsuranceModule {}

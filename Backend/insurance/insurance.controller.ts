@@ -4,6 +4,7 @@ import { InsuranceService } from './insurance.service';
 import { ClaimService } from './claim.service';
 import { ReinsuranceService } from './reinsurance.service';
 import { PoolService } from './pool.service';
+import { InsuranceAnalyticsService } from './insurance-analytics.service';
 import { PurchasePolicyDto } from './dto/purchase-policy.dto';
 import { CreateClaimDto } from './dto/create-claim.dto';
 import { CreateReinsuranceDto } from './dto/create-reinsurance.dto';
@@ -16,7 +17,32 @@ export class InsuranceController {
     private readonly claims: ClaimService,
     private readonly reinsurance: ReinsuranceService,
     private readonly pools: PoolService,
+    private readonly analytics: InsuranceAnalyticsService,
   ) {}
+
+  @Get('analytics/claims-ratio')
+  async getClaimsRatio(@Param('start') start?: string, @Param('end') end?: string) {
+    const range = start && end ? { start: new Date(start), end: new Date(end) } : undefined;
+    return this.analytics.getClaimsRatio(range);
+  }
+
+  @Get('analytics/pool-performance')
+  async getPoolPerformance(@Param('start') start?: string, @Param('end') end?: string) {
+    const range = start && end ? { start: new Date(start), end: new Date(end) } : undefined;
+    return this.analytics.getPoolPerformance(range);
+  }
+
+  @Get('analytics/risk-distribution')
+  async getRiskDistribution(@Param('start') start?: string, @Param('end') end?: string) {
+    const range = start && end ? { start: new Date(start), end: new Date(end) } : undefined;
+    return this.analytics.getRiskDistribution(range);
+  }
+
+  @Get('analytics/revenue')
+  async getRevenue(@Param('start') start?: string, @Param('end') end?: string) {
+    const range = start && end ? { start: new Date(start), end: new Date(end) } : undefined;
+    return this.analytics.getRevenue(range);
+  }
 
   @Post('purchase')
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))

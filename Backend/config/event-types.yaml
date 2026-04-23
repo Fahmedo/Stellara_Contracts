@@ -48,3 +48,15 @@ event_types:
     handler: ProjectFailedHandler
     schema: project_failed.schema.json
     wildcard: false
+  - type: policy_new
+    version: 1
+    handler: PolicyCreatedHandler
+    wildcard: false
+  - type: claim_sub
+    version: 1
+    handler: ClaimSubmittedHandler
+    wildcard: false
+  - type: claim_paid
+    version: 1
+    handler: ClaimPaidHandler
+    wildcard: false

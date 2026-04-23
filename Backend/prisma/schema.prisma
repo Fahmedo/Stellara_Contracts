@@ -16,6 +16,7 @@ model User {
   profileData     Json?    @map("profile_data")
   reputationScore Int      @default(0) @map("reputation_score")
   trustScore      Int      @default(500) @map("trust_score")
+  reputationLevel String   @default("BRONZE") @map("reputation_level")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -144,6 +145,9 @@ model ReputationScore {
   peerRatingScore        Decimal  @map("peer_rating_score") @db.Decimal(6, 2)
   contributionSizeScore  Decimal  @map("contribution_size_score") @db.Decimal(6, 2)
   communityFeedbackScore Decimal  @map("community_feedback_score") @db.Decimal(6, 2)
+  reliabilityScore       Decimal  @default(50) @map("reliability_score") @db.Decimal(6, 2)
+  expertiseScore         Decimal  @default(0) @map("expertise_score") @db.Decimal(6, 2)
+  communityScore         Decimal  @default(50) @map("community_score") @db.Decimal(6, 2)
   activityCount          Int      @map("activity_count")
   lowConfidence          Boolean  @default(false) @map("low_confidence")
   calculatedAt           DateTime @updatedAt @map("calculated_at")
@@ -180,6 +184,10 @@ enum ActivityType {
   MILESTONE_ACHIEVEMENT
   SOCIAL_INTERACTION
   HELPFUL_COMMENT
+  MILESTONE_COMPLETED
+  MILESTONE_DELAYED
+  EXPERT_ENDORSEMENT
+  GOVERNANCE_VOTE
 }
 
 model Category {

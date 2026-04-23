@@ -26,6 +26,14 @@ export enum ActivityType {
   SOCIAL_INTERACTION = 'SOCIAL_INTERACTION',
   /** A comment marked as helpful by other users. */
   HELPFUL_COMMENT = 'HELPFUL_COMMENT',
+  /** A milestone completed within a project. */
+  MILESTONE_COMPLETED = 'MILESTONE_COMPLETED',
+  /** A milestone that was delayed beyond its deadline. */
+  MILESTONE_DELAYED = 'MILESTONE_DELAYED',
+  /** A peer rating given by a verified expert in the field. */
+  EXPERT_ENDORSEMENT = 'EXPERT_ENDORSEMENT',
+  /** Participation in protocol governance voting. */
+  GOVERNANCE_VOTE = 'GOVERNANCE_VOTE',
 }
 
 /**
@@ -35,11 +43,26 @@ export enum ActivityType {
  * Tune these constants without touching calculation logic.
  */
 export const FACTOR_WEIGHTS = {
-  SUCCESS_RATE: 0.35, // outcome quality
-  PEER_RATING: 0.3, // community sentiment
-  CONTRIBUTION_SIZE: 0.2, // volume and impact
-  COMMUNITY_FEEDBACK: 0.15, // reviews and dispute outcomes
+  SUCCESS_RATE: 0.2,
+  PEER_RATING: 0.15,
+  CONTRIBUTION_SIZE: 0.1,
+  COMMUNITY_FEEDBACK: 0.1,
+  RELIABILITY: 0.2,
+  EXPERTISE: 0.15,
+  COMMUNITY_CONTRIBUTION: 0.1,
 } as const;
+
+/**
+ * Reputation level thresholds.
+ * Users are assigned a level based on their composite score.
+ */
+export const REPUTATION_LEVELS = [
+  { level: 'DIAMOND', minScore: 90 },
+  { level: 'PLATINUM', minScore: 75 },
+  { level: 'GOLD', minScore: 60 },
+  { level: 'SILVER', minScore: 40 },
+  { level: 'BRONZE', minScore: 0 },
+] as const;
 
 /**
  * Time-decay half-life in days.

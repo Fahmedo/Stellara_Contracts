@@ -126,10 +126,13 @@ export class ReputationService {
 
     const breakdown = calculateReputationScore(activities);
 
-    // Update user's aggregate score in the main users table
+    // Update user's aggregate score and level in the main users table
     await this.prisma.user.update({
       where: { id: userId },
-      data: { reputationScore: Math.round(breakdown.compositeScore) },
+      data: { 
+        reputationScore: Math.round(breakdown.compositeScore),
+        reputationLevel: breakdown.level,
+      },
     });
 
     // Cache the detailed breakdown for API consumption
@@ -142,6 +145,9 @@ export class ReputationService {
         peerRatingScore: breakdown.peerRatingScore,
         contributionSizeScore: breakdown.contributionSizeScore,
         communityFeedbackScore: breakdown.communityFeedbackScore,
+        reliabilityScore: breakdown.reliabilityScore,
+        expertiseScore: breakdown.expertiseScore,
+        communityScore: breakdown.communityScore,
         activityCount: breakdown.activityCount,
         lowConfidence: breakdown.lowConfidence,
       },
@@ -151,6 +157,9 @@ export class ReputationService {
         peerRatingScore: breakdown.peerRatingScore,
         contributionSizeScore: breakdown.contributionSizeScore,
         communityFeedbackScore: breakdown.communityFeedbackScore,
+        reliabilityScore: breakdown.reliabilityScore,
+        expertiseScore: breakdown.expertiseScore,
+        communityScore: breakdown.communityScore,
         activityCount: breakdown.activityCount,
         lowConfidence: breakdown.lowConfidence,
       },
