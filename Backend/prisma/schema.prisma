@@ -66,6 +66,7 @@ model Project {
   // Relations
   contributions Contribution[]
   milestones    Milestone[]
+  publicGoodsProject PublicGoodsProject?
 
   @@map("projects")
 }
@@ -266,6 +267,28 @@ model EmailOutbox {
   @@map("email_outbox")
 }
 
+model NotificationOutbox {
+  id             String              @id @default(cuid())
+  notificationId String?             @map("notification_id")
+  userId         String              @map("user_id")
+  channel        NotificationChannel
+  status         DeliveryStatus      @default(PENDING)
+  dedupKey       String              @unique @map("dedup_key")
+  payload        Json
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(3) @map("max_attempts")
+  nextRetryAt    DateTime            @default(now()) @map("next_retry_at")
+  lastAttemptAt  DateTime?           @map("last_attempt_at")
+  retryDisabled  Boolean             @default(false) @map("retry_disabled")
+  lastError      String?             @map("last_error")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  @@index([status, nextRetryAt])
+  @@index([userId, channel])
+  @@map("notification_outbox")
+}
+
 enum NotificationType {
   CONTRIBUTION
   MILESTONE
@@ -274,6 +297,17 @@ enum NotificationType {
 }
 
 enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum NotificationChannel {
+  EMAIL
+  PUSH
+}
+
+enum DeliveryStatus {
   PENDING
   SENT
   FAILED
@@ -385,6 +419,43 @@ model Auction {
   endTime           DateTime          @map("end_time")
   status            AuctionStatus     @default(ACTIVE)
   winningBidId      String?           @map("winning_bid_id")
+// Regenerative Finance Models
+
+model FundingRound {
+  id                String            @id @default(cuid())
+  title             String
+  description       String?
+  type              FundingRoundType  @default(QUADRATIC)
+  status            FundingRoundStatus @default(UPCOMING)
+  startTime         DateTime          @map("start_time")
+  endTime           DateTime          @map("end_time")
+  matchingPool      BigInt            @default(0) @map("matching_pool")
+  totalContributions BigInt           @default(0) @map("total_contributions")
+  totalMatched      BigInt            @default(0) @map("total_matched")
+  metadata          Json?             @map("metadata")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  projects          FundingRoundProject[]
+  contributions      QuadraticContribution[]
+  impactCertificates ImpactCertificate[]
+  poolAllocations   PoolAllocation[]
+
+  @@map("funding_rounds")
+}
+
+model PublicGoodsProject {
+  id                String            @id @default(cuid())
+  projectId         String?           @unique @map("project_id")
+  project           Project?          @relation(fields: [projectId], references: [id])
+  title             String
+  description       String
+  category          String
+  walletAddress     String            @map("wallet_address")
+  impactMetrics     Json?             @map("impact_metrics")
+  verificationData  Json?             @map("verification_data")
+  status            ProjectStatus      @default(ACTIVE)
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
@@ -510,6 +581,199 @@ enum AccountingProvider {
   XERO
   FRESHBOOKS
   WAVE
+  roundProjects     FundingRoundProject[]
+  contributions     QuadraticContribution[]
+  impactCertificates ImpactCertificate[]
+  retroactiveFunding RetroactiveFunding[]
+
+  @@map("public_goods_projects")
+}
+
+model FundingRoundProject {
+  id                   String     @id @default(cuid())
+  fundingRoundId       String     @map("funding_round_id")
+  fundingRound         FundingRound @relation(fields: [fundingRoundId], references: [id])
+  publicGoodsProjectId String     @map("public_goods_project_id")
+  publicGoodsProject   PublicGoodsProject @relation(fields: [publicGoodsProjectId], references: [id])
+  uniqueContributors   Int        @default(0) @map("unique_contributors")
+  totalContributions   BigInt     @default(0) @map("total_contributions")
+  matchedAmount        BigInt     @default(0) @map("matched_amount")
+  status               ProjectParticipationStatus @default(APPROVED)
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  contributions QuadraticContribution[]
+
+  @@unique([fundingRoundId, publicGoodsProjectId])
+  @@map("funding_round_projects")
+}
+
+model QuadraticContribution {
+  id                   String   @id @default(cuid())
+  fundingRoundId       String   @map("funding_round_id")
+  fundingRound         FundingRound @relation(fields: [fundingRoundId], references: [id])
+  publicGoodsProjectId String   @map("public_goods_project_id")
+  publicGoodsProject   PublicGoodsProject @relation(fields: [publicGoodsProjectId], references: [id])
+  fundingRoundProjectId String? @map("funding_round_project_id")
+  fundingRoundProject FundingRoundProject? @relation(fields: [fundingRoundProjectId], references: [id])
+  contributorAddress   String   @map("contributor_address")
+  amount               BigInt
+  voiceCredits         BigInt   @default(0) @map("voice_credits")
+  transactionHash      String   @unique @map("transaction_hash")
+  timestamp            DateTime @default(now())
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([fundingRoundId, contributorAddress])
+  @@index([publicGoodsProjectId])
+  @@map("quadratic_contributions")
+}
+
+model ImpactCertificate {
+  id                   String              @id @default(cuid())
+  tokenId              String              @unique @map("token_id")
+  fundingRoundId       String              @map("funding_round_id")
+  fundingRound         FundingRound        @relation(fields: [fundingRoundId], references: [id])
+  publicGoodsProjectId String              @map("public_goods_project_id")
+  publicGoodsProject   PublicGoodsProject  @relation(fields: [publicGoodsProjectId], references: [id])
+  issuerAddress        String              @map("issuer_address")
+  holderAddress        String              @map("holder_address")
+  impactMetrics        Json                @map("impact_metrics")
+  verificationData     Json?               @map("verification_data")
+  status               CertificateStatus   @default(ACTIVE)
+  issuedAt             DateTime            @default(now()) @map("issued_at")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+
+  @@map("impact_certificates")
+}
+
+model RetroactiveFunding {
+  id                   String              @id @default(cuid())
+  publicGoodsProjectId String              @map("public_goods_project_id")
+  publicGoodsProject   PublicGoodsProject  @relation(fields: [publicGoodsProjectId], references: [id])
+  evaluatorAddress     String              @map("evaluator_address")
+  impactScore          Decimal             @map("impact_score")
+  fundingAmount        BigInt              @map("funding_amount")
+  evaluationCriteria   Json                @map("evaluation_criteria")
+  supportingEvidence   Json?               @map("supporting_evidence")
+  status               FundingStatus       @default(PENDING)
+  evaluatedAt          DateTime            @default(now()) @map("evaluated_at")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+
+  @@map("retroactive_funding")
+}
+
+model MatchingPool {
+  id                   String            @id @default(cuid())
+  name                 String
+  description          String?
+  totalAmount          BigInt            @map("total_amount")
+  allocatedAmount      BigInt            @default(0) @map("allocated_amount")
+  source               MatchingPoolSource @default(PROTOCOL_FEES)
+  percentageFee        Decimal           @default(0.01) @map("percentage_fee")
+  isActive             Boolean           @default(true) @map("is_active")
+  metadata             Json?             @map("metadata")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  allocations          PoolAllocation[]
+
+  @@map("matching_pools")
+}
+
+model PoolAllocation {
+  id                   String       @id @default(cuid())
+  matchingPoolId       String       @map("matching_pool_id")
+  matchingPool         MatchingPool @relation(fields: [matchingPoolId], references: [id])
+  fundingRoundId       String?      @map("funding_round_id")
+  fundingRound         FundingRound? @relation(fields: [fundingRoundId], references: [id])
+  amount               BigInt
+  allocatedAt          DateTime     @default(now()) @map("allocated_at")
+  createdAt            DateTime     @default(now()) @map("created_at")
+
+  @@map("pool_allocations")
+}
+
+model ImpactMetric {
+  id                   String   @id @default(cuid())
+  publicGoodsProjectId String   @map("public_goods_project_id")
+  metricName           String   @map("metric_name")
+  metricValue          String   @map("metric_value")
+  unit                 String?
+  timestamp            DateTime @default(now())
+  verified             Boolean  @default(false)
+  verificationSource   String?  @map("verification_source")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([publicGoodsProjectId])
+  @@index([metricName])
+  @@map("impact_metrics")
+}
+
+model IntegrationConfig {
+  id                   String               @id @default(cuid())
+  platform             IntegrationPlatform
+  config               Json
+  isActive             Boolean              @default(true) @map("is_active")
+  lastSyncAt           DateTime?            @map("last_sync_at")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  @@unique([platform])
+  @@map("integration_configs")
+}
+
+// Enums for Regenerative Finance
+
+enum FundingRoundType {
+  QUADRATIC
+  RETROACTIVE
+  IMPACT_MARKET
+}
+
+enum FundingRoundStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectParticipationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum CertificateStatus {
+  ACTIVE
+  BURNED
+  TRANSFERRED
+  EXPIRED
+}
+
+enum FundingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum MatchingPoolSource {
+  PROTOCOL_FEES
+  DIRECT_DEPOSIT
+  TREASURY
+  EXTERNAL_GRANT
+}
+
+enum IntegrationPlatform {
+  GITCOIN
+  CLR_FUND
+  GITHUB
+  DISCORD
 // Trading Competition Models
 
 model TradingCompetition {

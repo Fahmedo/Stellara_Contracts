@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { Prisma } from '@prisma/client';
 import { CompetitionType, DurationType, CompetitionStatus, ParticipantStatus } from '../enums/competition-type.enum';
 import { CreateCompetitionDto } from '../dto/create-competition.dto';
 import { JoinCompetitionDto } from '../dto/join-competition.dto';
@@ -11,7 +12,14 @@ export class CompetitionService {
   constructor(private prisma: PrismaService) {}
 
   async createCompetition(createCompetitionDto: CreateCompetitionDto) {
-    const { startTime, endTime, createdBy, prizeDistribution, ...competitionData } = createCompetitionDto;
+    const {
+      startTime,
+      endTime,
+      createdBy,
+      prizeDistribution,
+      rules,
+      ...competitionData
+    } = createCompetitionDto;
 
     // Validate time
     const start = new Date(startTime);
@@ -36,7 +44,8 @@ export class CompetitionService {
         ...competitionData,
         startTime: start,
         endTime: end,
-        prizeDistribution,
+        prizeDistribution: prizeDistribution as unknown as Prisma.InputJsonValue,
+        rules: rules ? (rules as unknown as Prisma.InputJsonValue) : undefined,
         createdBy,
       },
       include: {
@@ -257,19 +266,19 @@ export class CompetitionService {
     let totalVolume = 0;
     let totalProfitLoss = 0;
     let profitableTrades = 0;
-    let runningBalance = trades[0].quantity * trades[0].price;
+    let runningBalance = Number(trades[0].quantity) * Number(trades[0].price);
     let maxBalance = runningBalance;
     let minBalance = runningBalance;
     const balances = [runningBalance];
 
     for (let i = 0; i < trades.length; i++) {
       const trade = trades[i];
-      totalVolume += trade.totalValue;
+      totalVolume += Number(trade.totalValue);
       
       // Simple P&L calculation (would need more sophisticated logic for real scenarios)
       if (i > 0) {
         const prevTrade = trades[i - 1];
-        const pnl = (trade.price - prevTrade.price) * trade.quantity;
+        const pnl = (Number(trade.price) - Number(prevTrade.price)) * Number(trade.quantity);
         totalProfitLoss += pnl;
         runningBalance += pnl;
         
@@ -525,8 +534,12 @@ export class CompetitionService {
 
     // Calculate prize distributions
     const prizeDistributions = [];
+    const prizeRules = Array.isArray(competition.prizeDistribution)
+      ? (competition.prizeDistribution as Array<{ rank: number; percentage: number }>)
+      : [];
+
     for (const [index, entry] of competition.leaderboard.entries()) {
-      const prizeRule = competition.prizeDistribution.find(rule => rule.rank === entry.rank + 1);
+      const prizeRule = prizeRules.find(rule => rule.rank === entry.rank);
       if (prizeRule) {
         const prizeAmount = (Number(competition.prizePool) * prizeRule.percentage) / 100;
         
@@ -627,13 +640,12 @@ export class CompetitionService {
 
   async getUserCompetitions(userId: string, status?: CompetitionStatus) {
     const where: any = { userId };
-    if (status) where.participant = { status };
+    if (status) where.status = status;
 
     return this.prisma.competitionParticipant.findMany({
       where,
       include: {
         competition: true,
-        leaderboard: true,
       },
       orderBy: { joinedAt: 'desc' },
     });

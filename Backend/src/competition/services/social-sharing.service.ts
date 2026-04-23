@@ -235,11 +235,20 @@ export class SocialSharingService {
             status: true,
           },
         },
-        leaderboard: true,
       },
       orderBy: { joinedAt: 'desc' },
       take: 5,
     });
+
+    const leaderboardEntries = await this.prisma.competitionLeaderboard.findMany({
+      where: {
+        userId,
+        competitionId: { in: userCompetitions.map((p) => p.competitionId) },
+      },
+    });
+    const leaderboardByCompetition = new Map(
+      leaderboardEntries.map((entry) => [entry.competitionId, entry]),
+    );
 
     return {
       achievements: achievements.map(achievement => ({
@@ -250,10 +259,16 @@ export class SocialSharingService {
       })),
       competitions: userCompetitions.map(participant => ({
         competition: participant.competition,
-        userRank: participant.leaderboard,
+        userRank: leaderboardByCompetition.get(participant.competitionId) || null,
         shareUrl: this.generateLeaderboardShareUrl(participant.competitionId, userId),
-        shareText: this.generateLeaderboardShareText(participant.competition, participant.leaderboard),
-        shareImage: this.generateLeaderboardShareImage(participant.competition, participant.leaderboard),
+        shareText: this.generateLeaderboardShareText(
+          participant.competition,
+          leaderboardByCompetition.get(participant.competitionId) || null,
+        ),
+        shareImage: this.generateLeaderboardShareImage(
+          participant.competition,
+          leaderboardByCompetition.get(participant.competitionId) || null,
+        ),
       })),
     };
   }

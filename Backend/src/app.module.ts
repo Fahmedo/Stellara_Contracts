@@ -12,6 +12,8 @@ import { HealthModule } from './health/health.module';
 import { IndexerModule } from './indexer/indexer.module';
 import { NotificationModule } from './notification/notification.module';
 import { StorageModule } from './storage/storage.module';
+import { InsuranceModule } from '../insurance/insurance.module';
+import { RegenerativeFinanceModule } from './regenerative-finance/regenerative-finance.module';
 import { CompetitionModule } from './competition/competition.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
@@ -44,6 +46,8 @@ import { AppCacheModule } from './cache/cache.module';
     IndexerModule,
     NotificationModule,
     StorageModule,
+    InsuranceModule,
+    RegenerativeFinanceModule,
     CompetitionModule,
     AppCacheModule,
     UserModule,

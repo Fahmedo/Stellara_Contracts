@@ -16,6 +16,8 @@ export class MetricsService {
     @InjectMetric('indexer_current_ledger')    private readonly indexerCurrent: Gauge<string>,
     @InjectMetric('indexer_network_ledger')    private readonly indexerNetwork: Gauge<string>,
     @InjectMetric('indexer_lag_ledgers')       private readonly indexerLag: Gauge<string>,
+    @InjectMetric('indexer_polls_total')       private readonly indexerPolls: Counter<string>,
+    @InjectMetric('indexer_events_per_poll')   private readonly indexerEventsPerPoll: Histogram<string>,
     @InjectMetric('blockchain_events_processed_total') private readonly blockchainEvents: Counter<string>,
     @InjectMetric('websocket_connections_active') private readonly wsConnections: Gauge<string>,
     @InjectMetric('cache_hits_total')          private readonly cacheHits: Counter<string>,
@@ -59,6 +61,11 @@ export class MetricsService {
     this.indexerCurrent.set(current);
     this.indexerNetwork.set(network);
     this.indexerLag.set(Math.max(0, network - current));
+  }
+
+  recordIndexerPoll(status: 'success' | 'partial' | 'error' | 'noop', eventCount: number) {
+    this.indexerPolls.inc({ status });
+    this.indexerEventsPerPoll.observe(eventCount);
   }
 
   recordBlockchainEvent(eventType: string) {

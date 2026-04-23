@@ -32,7 +32,7 @@ export class AntiCheatService {
     alerts.push(...this.detectBotPatterns(trades, competitionId, userId));
 
     // Check for multiple account patterns
-    alerts.push(...this.detectMultipleAccounts(competitionId, userId));
+    alerts.push(...(await this.detectMultipleAccounts(competitionId, userId)));
 
     return alerts;
   }
@@ -81,9 +81,9 @@ export class AntiCheatService {
       if (!groups[trade.asset]) groups[trade.asset] = [];
       groups[trade.asset].push(trade);
       return groups;
-    }, {});
+    }, {} as Record<string, any[]>);
 
-    for (const [asset, assetTrades] of Object.entries(assetGroups)) {
+    for (const [asset, assetTrades] of Object.entries(assetGroups) as Array<[string, any[]]>) {
       if (assetTrades.length < 4) continue;
 
       // Look for circular trading patterns

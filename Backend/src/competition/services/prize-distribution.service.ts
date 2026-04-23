@@ -212,9 +212,6 @@ export class PrizeDistributionService {
         prizeAmount: true,
       },
       _count: true,
-      _groupBy: {
-        status: true,
-      },
     });
 
     const statusBreakdown = await this.prisma.prizeDistribution.groupBy({
