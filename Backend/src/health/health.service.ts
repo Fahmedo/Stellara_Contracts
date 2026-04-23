@@ -184,9 +184,11 @@ export class HealthService {
       };
     }
 
+    const timeoutMs = this.configService.get<number>('HTTP_REQUEST_TIMEOUT_MS', 5000);
+
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
       const response = await fetch(url, {
         method: 'GET',
         signal: controller.signal,

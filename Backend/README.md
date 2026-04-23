@@ -155,6 +155,9 @@ This project uses **HashiCorp Vault** for secure secrets management. Secrets are
 
 🧪 Testing npm run test npm run test:e2e
 
+📌 API versioning docs: see `./docs/api-versioning.md`
+⏱️ Timeout configuration: see `./docs/timeout-configuration.md`
+
 🤝 Contributing The first step is to Fork the repository then you Create a feature branch Commit your changes git pull latest changes to avoid conflicts Submit a pull request Issues and feature requests are welcome.
 
 🗄️ Database & Migrations Workflow

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { StorageService } from './storage.service';
+import { IpfsService } from './ipfs.service';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { StorageService } from './storage.service';
       },
     }),
   ],
-  providers: [StorageService],
-  exports: [StorageService],
+  providers: [StorageService, IpfsService],
+  exports: [StorageService, IpfsService],
 })
 export class StorageModule {}

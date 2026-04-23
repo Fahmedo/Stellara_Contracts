@@ -69,38 +69,45 @@ export class AnalyticsService {
       include: {
         competition: true,
         trades: true,
-        leaderboard: true,
-        achievements: true,
       },
     });
+
+    const userLeaderboard = await this.prisma.competitionLeaderboard.findMany({
+      where: { userId },
+    });
+
+    const achievements = await this.prisma.competitionAchievement.findMany({
+      where: { userId },
+      orderBy: { earnedAt: 'desc' },
+    });
+
+    const leaderboardByCompetition = new Map(userLeaderboard.map((entry) => [entry.competitionId, entry]));
 
     const analytics = {
       overview: {
         totalCompetitions: userCompetitions.length,
         competitionsWon: userCompetitions.filter(p => p.rank === 1).length,
-        totalPrizesWon: userCompetitions.reduce((sum, p) => sum + (p.prizeAmount || 0), 0),
+        totalPrizesWon: userCompetitions.reduce((sum, p) => sum + Number(p.prizeAmount || 0), 0),
         totalTrades: userCompetitions.reduce((sum, p) => sum + p.trades.length, 0),
         totalVolume: userCompetitions.reduce((sum, p) => 
           sum + p.trades.reduce((tradeSum, trade) => tradeSum + Number(trade.totalValue), 0), 0),
       },
       performance: {
-        averageReturn: this.calculateAverageReturn(userCompetitions.map(p => p.leaderboard).flat()),
+        averageReturn: this.calculateAverageReturn(userLeaderboard),
         bestReturn: Math.max(...userCompetitions.map(p => Number(p.totalReturn || 0))),
         averageRank: userCompetitions.reduce((sum, p) => sum + (p.rank || 0), 0) / userCompetitions.length,
         winRate: (userCompetitions.filter(p => p.rank && p.rank <= 3).length / userCompetitions.length) * 100,
       },
       achievements: {
-        totalAchievements: userCompetitions.reduce((sum, p) => sum + p.achievements.length, 0),
-        achievementTypes: this.groupAchievementsByType(userCompetitions.flatMap(p => p.achievements)),
-        recentAchievements: userCompetitions.flatMap(p => p.achievements)
-          .sort((a, b) => new Date(b.earnedAt).getTime() - new Date(a.earnedAt).getTime())
-          .slice(0, 5),
+        totalAchievements: achievements.length,
+        achievementTypes: this.groupAchievementsByType(achievements),
+        recentAchievements: achievements.slice(0, 5),
       },
       competitionHistory: userCompetitions.map(p => ({
         competitionId: p.competitionId,
         title: p.competition.title,
         type: p.competition.type,
-        rank: p.rank,
+        rank: leaderboardByCompetition.get(p.competitionId)?.rank || p.rank,
         totalReturn: p.totalReturn,
         prizeAmount: p.prizeAmount,
         finishedAt: p.competition.endTime,

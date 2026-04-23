@@ -2,6 +2,8 @@ import { plainToInstance } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
+  Max,
+  Min,
   IsNumber,
   IsOptional,
   IsString,
@@ -23,6 +25,34 @@ class EnvironmentVariables {
 
   @IsString()
   API_PREFIX: string;
+
+  @IsOptional()
+  @IsString()
+  DEFAULT_API_VERSION?: string;
+
+  @IsOptional()
+  @IsString()
+  API_VERSION_SUNSET?: string;
+
+  @IsOptional()
+  @IsNumber()
+  HTTP_REQUEST_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  DATABASE_STATEMENT_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  IPFS_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  SENDGRID_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @IsNumber()
+  STELLAR_RPC_TIMEOUT_MS?: number;
 
   @IsString()
   DATABASE_URL: string;
@@ -84,6 +114,8 @@ class EnvironmentVariables {
   REPUTATION_CONTRACT_ID?: string;
 
   @IsNumber()
+  @Min(1000)
+  @Max(60000)
   INDEXER_POLL_INTERVAL_MS: number;
 
   @IsNumber()

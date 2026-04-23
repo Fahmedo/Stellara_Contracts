@@ -35,6 +35,8 @@ import { MetricsService } from './metrics.service';
     makeGaugeProvider({ name: 'indexer_current_ledger', help: 'Current ledger being indexed' }),
     makeGaugeProvider({ name: 'indexer_network_ledger', help: 'Latest ledger on network' }),
     makeGaugeProvider({ name: 'indexer_lag_ledgers', help: 'Indexer lag in ledgers' }),
+    makeCounterProvider({ name: 'indexer_polls_total', help: 'Total indexer poll cycles', labelNames: ['status'] }),
+    makeHistogramProvider({ name: 'indexer_events_per_poll', help: 'Events fetched per poll cycle', buckets: [0, 1, 5, 10, 25, 50, 100, 250, 500] }),
     makeCounterProvider({ name: 'blockchain_events_processed_total', help: 'Blockchain events processed', labelNames: ['event_type'] }),
 
     // RPC metrics

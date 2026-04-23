@@ -89,6 +89,7 @@ import {
 } from '../types/event-types';
 import { IEventHandler, IEventHandlerRegistry } from '../interfaces/event-handler.interface';
 import { NotificationService } from '../../notification/services/notification.service';
+import { ReputationService } from '../../reputation/reputation.service';
 import { validateEventData } from '../utils/event-validation.util';
 
 /**

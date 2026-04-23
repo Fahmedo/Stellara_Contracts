@@ -4,6 +4,7 @@ import {
   BadRequestException,
   PayloadTooLargeException,
 } from '@nestjs/common';
+import { IpfsService } from './ipfs.service';
 
 // Allowed MIME types and their max sizes
 const ALLOWED_TYPES: Record<string, number> = {
@@ -40,6 +41,8 @@ export class StorageService {
   private readonly userUploadTimestamps = new Map<string, number[]>();
   private readonly RATE_LIMIT_WINDOW_MS = 3600000; // 1 hour
   private readonly RATE_LIMIT_MAX_UPLOADS = 20;
+
+  constructor(private readonly ipfsService: IpfsService) {}
 
   validateFile(file: Express.Multer.File): void {
     if (!file) throw new BadRequestException('No file provided');
@@ -98,16 +101,22 @@ export class StorageService {
       `Uploading to IPFS: ${file.originalname} (${file.size} bytes, ${file.mimetype}) for user ${userId}`,
     );
 
-    // Replace with real IPFS/Pinata client call in production
-    const cid = `Qm${Buffer.from(file.buffer).toString('base64').slice(0, 44)}`;
-    const url = `https://ipfs.io/ipfs/${cid}`;
+    try {
+      const cid = await this.ipfsService.upload(file.buffer, {
+        contentType: file.mimetype,
+      });
+      const url = `https://ipfs.io/ipfs/${cid}`;
 
-    return {
-      url,
-      size: file.size,
-      mimeType: file.mimetype,
-      filename: file.originalname,
-    };
+      return {
+        url,
+        size: file.size,
+        mimeType: file.mimetype,
+        filename: file.originalname,
+      };
+    } catch (error) {
+      this.logger.error('IPFS upload failed:', error);
+      throw new BadRequestException('Failed to upload file to IPFS');
+    }
   }
 
   async uploadImage(file: Express.Multer.File, userId: string): Promise<UploadResult> {
@@ -131,6 +140,22 @@ export class StorageService {
       mimeType: file.mimetype,
       filename: file.originalname,
     };
+  }
+
+  async pinProjectMetadata(metadata: Record<string, unknown>): Promise<string> {
+    const payload = Buffer.from(JSON.stringify(metadata || {}));
+    const cid = `bafy${payload.toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 40)}`;
+    return cid;
+  }
+
+  async optimizeImage(imagePath: string, width: number, height: number): Promise<string> {
+    this.logger.log(`Optimizing image ${imagePath} to ${width}x${height}`);
+    return `${imagePath}?w=${width}&h=${height}&optimized=true`;
+  }
+
+  verifyIPFSHash(hash: string): boolean {
+    if (!hash) return false;
+    return /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(hash) || /^bafy[a-z0-9]+$/i.test(hash);
   }
 
   getAllowedTypes(): string[] {

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma.service';
 
 @Injectable()
@@ -91,7 +92,7 @@ export class LeaderboardService {
     }));
   }
 
-  private getOrderByMetric(metric: string) {
+  private getOrderByMetric(metric: string): Prisma.CompetitionLeaderboardOrderByWithRelationInput {
     switch (metric) {
       case 'return':
         return { totalReturn: 'desc' };

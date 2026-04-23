@@ -3,7 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma.service';
 import { UpdateUserProfileDto } from './dto/user-profile.dto';
 import { UpdateNotificationSettingsDto, CreateNotificationSettingsDto } from './dto/notification-settings.dto';
 import { calculateProfileCompleteness } from './utils/profile-completeness.util';

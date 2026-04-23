@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Interval } from '@nestjs/schedule';
 import { SorobanRpc } from '@stellar/stellar-sdk';
 import * as CircuitBreaker from 'opossum';
 import { PrismaService } from '../../prisma.service';
@@ -8,8 +7,6 @@ import { LedgerTrackerService } from './ledger-tracker.service';
 import { EventHandlerService } from './event-handler.service';
 import { MetricsService } from '../../metrics/metrics.service';
 import { NotificationService } from '../../notification/services/notification.service';
-import { LedgerTrackerService } from './ledger-tracker.service';
-import { EventHandlerService } from './event-handler.service';
 import { SorobanEvent, ParsedContractEvent, ContractEventType } from '../types/event-types';
 import { LedgerInfo } from '../types/ledger.types';
 
@@ -20,13 +17,15 @@ import { LedgerInfo } from '../types/ledger.types';
 @Injectable()
 export class IndexerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(IndexerService.name);
-  private readonly rpc: SorobanRpc.Server;
+  private rpc: SorobanRpc.Server;
   private readonly network: string;
-  private readonly pollIntervalMs: number;
+  private pollIntervalMs: number;
   private readonly maxEventsPerFetch: number;
   private readonly retryAttempts: number;
   private readonly retryDelayMs: number;
   private readonly contractIds: string[];
+  private pollTimer: NodeJS.Timeout | null = null;
+  private intervalWatchTimer: NodeJS.Timeout | null = null;
 
   private isRunning = false;
   private isShuttingDown = false;
@@ -71,14 +70,18 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       this.rpcEndpoints.unshift(primaryRpcUrl); // Primary first
     }
 
-    this.pollIntervalMs = this.configService.get<number>('INDEXER_POLL_INTERVAL_MS', 5000);
+    this.pollIntervalMs = this.normalizePollInterval(
+      this.configService.get<number>('INDEXER_POLL_INTERVAL_MS', 5000),
+    );
     this.maxEventsPerFetch = this.configService.get<number>('INDEXER_MAX_EVENTS_PER_FETCH', 100);
     this.retryAttempts = this.configService.get<number>('INDEXER_RETRY_ATTEMPTS', 3);
     this.retryDelayMs = this.configService.get<number>('INDEXER_RETRY_DELAY_MS', 1000);
 
     // Initialize RPC client with primary endpoint
+    const rpcTimeout = this.configService.get<number>('STELLAR_RPC_TIMEOUT_MS', 10000);
     this.rpc = new SorobanRpc.Server(this.rpcEndpoints[0], {
       allowHttp: this.rpcEndpoints[0].startsWith('http://'),
+      timeout: rpcTimeout,
     });
 
     // Initialize circuit breaker for RPC calls
@@ -89,7 +92,8 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     this.contractIds = this.getContractIds();
 
     this.logger.log(`Indexer initialized for ${this.network} network`);
-    this.logger.log(`RPC URL: ${rpcUrl}`);
+    this.logger.log(`RPC URL: ${this.rpcEndpoints[this.currentRpcIndex]}`);
+    this.logger.log(`Poll interval: ${this.pollIntervalMs}ms`);
     this.logger.log(`Monitoring contracts: ${this.contractIds.join(', ') || 'none configured'}`);
   }
 
@@ -180,7 +184,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       for (const user of alertUsers) {
         await this.notificationService.notify(
           user.id,
-          'SYSTEM_ALERT',
+          'SYSTEM',
           title,
           message,
           { alertType: 'rpc_failure' }
@@ -210,6 +214,8 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit(): Promise<void> {
     this.logger.log('Starting blockchain indexer...');
     await this.initializeIndexer();
+    this.startPollingScheduler();
+    this.startIntervalWatcher();
   }
 
   /**
@@ -218,6 +224,9 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     this.logger.log('Shutting down blockchain indexer...');
     this.isShuttingDown = true;
+
+    this.stopPollingScheduler();
+    this.stopIntervalWatcher();
 
     // Wait for current processing to complete
     while (this.isRunning) {
@@ -252,12 +261,47 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * Scheduled polling job - runs at configured interval
-   */
-  @Interval(5000) // Will use dynamic interval from config
-  async scheduledPoll(): Promise<void> {
-    if (this.isShuttingDown) return;
+  private startPollingScheduler(): void {
+    this.stopPollingScheduler();
+    this.pollTimer = setInterval(() => {
+      void this.runScheduledPoll();
+    }, this.pollIntervalMs);
+    this.logger.log(`Indexer scheduler started with ${this.pollIntervalMs}ms interval`);
+  }
+
+  private stopPollingScheduler(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  private startIntervalWatcher(): void {
+    this.stopIntervalWatcher();
+    this.intervalWatchTimer = setInterval(() => {
+      const rawInterval = Number(process.env.INDEXER_POLL_INTERVAL_MS || this.pollIntervalMs);
+      const nextInterval = this.normalizePollInterval(rawInterval);
+      if (nextInterval !== this.pollIntervalMs) {
+        this.logger.warn(
+          `Detected poll interval change from ${this.pollIntervalMs}ms to ${nextInterval}ms. Restarting scheduler.`,
+        );
+        this.pollIntervalMs = nextInterval;
+        this.startPollingScheduler();
+      }
+    }, 15000);
+  }
+
+  private stopIntervalWatcher(): void {
+    if (this.intervalWatchTimer) {
+      clearInterval(this.intervalWatchTimer);
+      this.intervalWatchTimer = null;
+    }
+  }
+
+  private async runScheduledPoll(): Promise<void> {
+    if (this.isShuttingDown) {
+      return;
+    }
     await this.pollEvents();
   }
 
@@ -283,6 +327,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       // Check if there's anything to process
       if (startLedger > latestLedger) {
         this.logger.debug(`No new ledgers. Current: ${startLedger - 1}, Latest: ${latestLedger}`);
+        this.metricsService.recordIndexerPoll('noop', 0);
         return;
       }
 
@@ -295,6 +340,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
         this.logger.debug('No events found in ledger range');
         // Still update cursor to show progress
         await this.ledgerTracker.updateCursor(latestLedger);
+        this.metricsService.recordIndexerPoll('success', 0);
         return;
       }
 
@@ -328,12 +374,21 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       await this.ledgerTracker.logProgress(latestLedger, latestLedger, processedCount);
 
       this.logger.log(`Processed ${processedCount}/${events.length} events (${errorCount} errors)`);
+      this.metricsService.recordIndexerPoll(errorCount > 0 ? 'partial' : 'success', events.length);
     } catch (error) {
       this.logger.error(`Error in poll cycle: ${error.message}`, error.stack);
       await this.ledgerTracker.logError('Poll cycle failed', { error: error.message });
+      this.metricsService.recordIndexerPoll('error', 0);
     } finally {
       this.isRunning = false;
     }
+  }
+
+  private normalizePollInterval(value: number): number {
+    if (!Number.isFinite(value)) {
+      return 5000;
+    }
+    return Math.min(60000, Math.max(1000, Math.floor(value)));
   }
 
   /**
