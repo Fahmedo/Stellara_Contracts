@@ -48,6 +48,7 @@ model User {
   notifications        Notification[]
   proposals            TransactionProposal[]
   tenantMembers       TenantMember[]
+  insurancePolicies    InsurancePolicy[]
 
   @@unique([tenantId, email])
   @@unique([tenantId, walletAddress])
@@ -590,6 +591,8 @@ model Pool {
 
   tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   claims Claim[]
+  insurancePolicies InsurancePolicy[]
+  reinsuranceContracts ReinsuranceContract[]
 
   @@unique([tenantId, name])
   @@index([tenantId, id])
