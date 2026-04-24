@@ -24,6 +24,8 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
+    "db:seed": "ts-node prisma/seed.ts",
+    "db:seed:reset": "ts-node prisma/seed-reset.ts",
     "prepare": "cd .. && husky install backend/.husky"
   },
   "dependencies": {
@@ -114,5 +116,8 @@
       "eslint --fix",
       "prettier --write"
     ]
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   }
 }

@@ -93,6 +93,13 @@ export class StorageService {
     this.userUploadTimestamps.set(userId, timestamps);
   }
 
+  sanitizeFilename(filename: string): string {
+    return filename
+      .replace(/[^a-zA-Z0-9._-]/g, '_') // strip unsafe chars
+      .replace(/\.{2,}/g, '.')           // collapse consecutive dots
+      .slice(0, 255);                    // enforce max length
+  }
+
   async uploadToIpfs(file: Express.Multer.File, userId: string): Promise<UploadResult> {
     this.checkRateLimit(userId);
     this.validateFile(file);
@@ -100,6 +107,8 @@ export class StorageService {
     this.logger.log(
       `Uploading to IPFS: ${file.originalname} (${file.size} bytes, ${file.mimetype}) for user ${userId}`,
     );
+
+    const safeFilename = this.sanitizeFilename(file.originalname);
 
     try {
       const cid = await this.ipfsService.upload(file.buffer, {
@@ -111,7 +120,7 @@ export class StorageService {
         url,
         size: file.size,
         mimeType: file.mimetype,
-        filename: file.originalname,
+        filename: safeFilename,
       };
     } catch (error) {
       this.logger.error('IPFS upload failed:', error);
@@ -143,9 +152,7 @@ export class StorageService {
   }
 
   async pinProjectMetadata(metadata: Record<string, unknown>): Promise<string> {
-    const payload = Buffer.from(JSON.stringify(metadata || {}));
-    const cid = `bafy${payload.toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 40)}`;
-    return cid;
+    return this.ipfsService.uploadJson(metadata, 'project-metadata');
   }
 
   async optimizeImage(imagePath: string, width: number, height: number): Promise<string> {
